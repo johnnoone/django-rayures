@@ -1,0 +1,18 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+stripe = "1.82.1"
+
+[dev-packages]
+Django = ">=2.0"
+psycopg2-binary = "*"
+pylama = ">=7.4.3"
+pytest = "*"
+pytest-django = "*"
+pytest-cov = "*"
+
+[requires]
+python_version = "3.6"
