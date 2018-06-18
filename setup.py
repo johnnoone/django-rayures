@@ -1,4 +1,7 @@
+#!/usr/bin/env python3
+
 from setuptools import setup, find_packages
+import versioneer
 
 setup(
     name="rayures",
@@ -7,4 +10,6 @@ setup(
     install_requires=[
         "stripe>=1.82.1"
     ],
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass()
 )

@@ -1,10 +1,14 @@
 import decimal
+import hmac
 from .objs import Price
-from functools import singledispatch
-from typing import Tuple
 from datetime import datetime
-from django.utils import timezone
 from django.conf import settings
+from django.utils import timezone
+from functools import singledispatch
+from hashlib import sha256
+from time import time
+from typing import Tuple
+
 
 # currencies those amount=1 means 100 cents
 # https://support.stripe.com/questions/which-zero-decimal-currencies-does-stripe-support
@@ -52,6 +56,18 @@ def price_to_stripe(price: Price) -> Tuple[int, str]:
 
 
 @singledispatch
+def dt_from_stripe(ts):
+    return ts
+
+
+@dt_from_stripe.register(int)
+@dt_from_stripe.register(float)
+def dt_from_stripe_number(ts):
+    tz = timezone.utc
+    return datetime.fromtimestamp(int(ts), tz)
+
+
+@singledispatch
 def dt_to_stripe(ts):
     return ts
 
@@ -61,13 +77,18 @@ def dt_to_stripe_datetime(ts):
     return int(ts.timestamp())
 
 
-@singledispatch
-def dt_from_stripe(ts):
-    return ts
+def charge_now(ts, ref=None):
+    ref = ref or timezone.now()
+    if dt_from_stripe(ts) > ref:
+        return 'now'
+    return dt_to_stripe(ts)
 
 
-@dt_from_stripe.register(int)
-@dt_from_stripe.register(float)
-def dt_from_stripe_number(ts):
-    tz = timezone.utc if settings.USE_TZ else None
-    return datetime.fromtimestamp(int(ts), tz)
+def sign_request(payload, secret, timestamp=None):
+    timestamp = timestamp or time()
+    signed_payload = ("%d.%s" % (timestamp, payload)).encode('utf-8')
+    expected_signature = hmac \
+        .new(secret.encode('utf-8'), msg=signed_payload, digestmod=sha256) \
+        .hexdigest()
+    signature = 't=%d,v1=%s' % (timestamp, expected_signature)
+    return signature, payload, timestamp
