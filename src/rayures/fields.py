@@ -1,6 +1,8 @@
 from .utils import price_from_stripe, dt_from_stripe
 from django.db import models
 from django.db.models.expressions import Col
+from django.db.models.lookups import IExact
+from django.db.models.fields.related_lookups import RelatedLookupMixin
 
 __all__ = ['IntegerField']
 
@@ -151,25 +153,25 @@ class StripeField(models.Field):
             col.__class__ = StripeCol
         return col
 
-    def select_format(self, compiler, sql, params):
-        sql, params = super().select_format(compiler, sql, params)
-        print('select_format', self, sql, params)
-        return sql, params
+    # def select_format(self, compiler, sql, params):
+    #     sql, params = super().select_format(compiler, sql, params)
+    #     print('select_format', self, sql, params)
+    #     return sql, params
 
-    def get_lookup(self, name):
-        result = super().get_lookup(name)
-        print('get_lookup', self, result, name)
-        # get_lookup rayures.Coupon.created_at <class 'django.db.models.lookups.GreaterThanOrEqual'> gte
-        # get_lookup rayures.Coupon.created_at <class 'django.db.models.lookups.LessThan'> lt
-        return result
+    # def get_lookup(self, name):
+    #     result = super().get_lookup(name)
+    #     print('get_lookup', self, result, name)
+    #     # get_lookup rayures.Coupon.created_at <class 'django.db.models.lookups.GreaterThanOrEqual'> gte
+    #     # get_lookup rayures.Coupon.created_at <class 'django.db.models.lookups.LessThan'> lt
+    #     return result
 
-    def get_transform(self, name):
-        result = super().get_transform(name)
-        print('get_transform', self, result, name)
-        return result
+    # def get_transform(self, name):
+    #     result = super().get_transform(name)
+    #     print('get_transform', self, result, name)
+    #     return result
 
 
-class IntegerField(models.IntegerField, StripeField):
+class IntegerField(StripeField, models.IntegerField):
     # description = _("String (up to %(max_length)s)")
     proxy = IntegerProxy
 
@@ -177,7 +179,7 @@ class IntegerField(models.IntegerField, StripeField):
         return 'IntegerField'
 
 
-class CharField(models.CharField, StripeField):
+class CharField(StripeField, models.CharField):
     # description = _("String (up to %(max_length)s)")
     proxy = CharProxy
 
@@ -198,7 +200,7 @@ class PriceField(StripeField):
     proxy = PriceProxy
 
 
-class BooleanField(models.NullBooleanField, StripeField):
+class BooleanField(StripeField, models.NullBooleanField):
     # description = _("String (up to %(max_length)s)")
     proxy = BooleanProxy
 
@@ -207,30 +209,6 @@ class BooleanField(models.NullBooleanField, StripeField):
 
 
 MISSING = object()
-
-
-class DateTimeFieldCasting:
-    """
-    Allow floats to work as query values for IntegerField. Without this, the
-    decimal portion of the float would always be discarded.
-    """
-    def get_prep_lookup(self):
-        res = super().get_prep_lookup()
-        return res
-        # raise Exception('toto')
-        # if isinstance(self.rhs, datetime):
-        #     self.rhs = dt_to_stripe(self.rhs)
-        # return super().get_prep_lookup()
-
-    def as_sql(self, *args, **kwargs):
-        print('SQL?', args, kwargs)
-        print('SQL?', self.lhs)
-        # if isinstance(self.lhs, StripeCol):
-        #     self.lhs = dt_to_stripe(self.rhs)
-        # if isinstance(self.rhs, datetime):
-        #     self.rhs = dt_to_stripe(self.rhs)
-        print('SQK?', self.__dict__)
-        return super().as_sql(*args, **kwargs)
 
 
 class ForeignKey(models.ForeignKey):
@@ -251,67 +229,21 @@ class ForeignKey(models.ForeignKey):
         kwargs['on_delete'] = models.SET_NULL
 
         # our
+        kwargs['editable'] = False
         self.source = source
 
         super().__init__(**kwargs)
-    # cus = models.ForeignKey('rayures.Customer', on_delete=models.SET_NULL, related_name='subscriptions', db_constraint=False, db_index='False')
 
     def get_col(self, alias, output_field=None):
         col = super().get_col(alias, output_field)
-        print("trolololo", col)
         if isinstance(col, Col):
             col.__class__ = StripeCol
         return col
 
-    # def get_lookup(self, name):
-    #     from colorama import Fore
-    #     result = super().get_lookup(name)
-    #     print(Fore.YELLOW + 'get_lookup', self, result, name)
-    #     # get_lookup rayures.Coupon.created_at <class 'django.db.models.lookups.GreaterThanOrEqual'> gte
-    #     # get_lookup rayures.Coupon.created_at <class 'django.db.models.lookups.LessThan'> lt
-    #     return result
-
     def contribute_to_class(self, cls, name, private_only=False, **kwargs):
         return super().contribute_to_class(cls, name, private_only=True, **kwargs)
 
-from django.db.models.lookups import (
-    IExact,
-)
-from django.db.models.fields.related_lookups import RelatedLookupMixin
 
 @ForeignKey.register_lookup
 class RelatedIExact(RelatedLookupMixin, IExact):
     pass
-
-# ForeignKey.register_lookup(RelatedExact)
-# ForeignObject.register_lookup(RelatedExact)
-
-    # def as_sql(self, *args, **kwargs):
-    #     print('SQL X?', args, kwargs)
-    #     print('SQL X?', self.lhs)
-    #     # if isinstance(self.lhs, StripeCol):
-    #     #     self.lhs = dt_to_stripe(self.rhs)
-    #     # if isinstance(self.rhs, datetime):
-    #     #     self.rhs = dt_to_stripe(self.rhs)
-    #     print('SQK X?', self.__dict__)
-    #     return super().as_sql(*args, **kwargs)
-
-
-# @DateTimeField.register_lookup
-# class DTGreaterThanOrEqual(DateTimeFieldCasting, lookups.GreaterThanOrEqual):
-#     pass
-
-
-# @DateTimeField.register_lookup
-# class DTGreaterThan(DateTimeFieldCasting, lookups.GreaterThan):
-#     pass
-
-
-# @DateTimeField.register_lookup
-# class DTLessThan(DateTimeFieldCasting, lookups.LessThan):
-#     pass
-
-
-# @DateTimeField.register_lookup
-# class DTLessThanOrEqual(DateTimeFieldCasting, lookups.LessThanOrEqual):
-#     pass

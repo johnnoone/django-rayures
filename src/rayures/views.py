@@ -62,11 +62,12 @@ def stripe_web_hook(request):
 
     try:
         payload = request.data
-        event, _ = Event.ingest(payload)
-        dispatch(event)
+        event, created = Event.ingest(payload, persist=True)
+        if created:
+            data = dispatch(event)
     except DispatchException as error:
         logging.exception(error)
-        data = {'error': {'name': error.__class__.__name__, 'message': str(error)}}
+        data = {'error': {'name': error.__class__.__name__, 'message': str(error)}, 'data': error.data}
     else:
-        data = {'success': True}
+        data = {'success': True, 'data': data}
     return JsonResponse(data, status=200)

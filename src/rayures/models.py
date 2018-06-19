@@ -13,7 +13,12 @@ registry = {}
 
 
 def state_factory(instance):
-    if isinstance(instance, StripeObject):
+    if isinstance(instance, dict):
+        assert 'object' in instance
+        assert 'id' in instance
+        data = instance
+        version = stripe.api_version
+    elif isinstance(instance, StripeObject):
         data = instance.data
         version = instance.stripe_api_version
     else:
@@ -34,18 +39,42 @@ class StripeMeta(ModelBase):
         return cls
 
 
-class StripeObject(models.Model, metaclass=StripeMeta):
+class RayureEventProcessingError(models.Model):
+    event = models.ForeignKey("rayures.Event", related_name='+', on_delete=models.CASCADE)
+    data = models.TextField()
+    func = models.CharField(max_length=500, null=True)
+    message = models.CharField(max_length=500)
+    traceback = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    acknowledged_at = models.DateTimeField(null=True)
+
+
+class RayuresMeta(models.Model):
     id = models.CharField(max_length=255, primary_key=True)
-    api_version = models.CharField(max_length=12)
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    content_object = GenericForeignKey('content_type', 'id')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True)
+
+    def __str__(self):
+        return f'{self.content_type} {self.id}'
+
+
+class StripeObject(models.Model, metaclass=StripeMeta):
+    id = models.CharField(max_length=255, primary_key=True, editable=False)
+    api_version = models.CharField(max_length=12, editable=False)
     data = JSONField(default=dict)
     events = GenericRelation('rayures.Event')
 
     @classmethod
-    def ingest(cls, state, api_version=None, **defaults):
+    def ingest(cls, state, persist=False, api_version=None, **defaults):
         assert cls._stripe_object == state['object']
 
         defaults['api_version'] = api_version or stripe.api_version
         defaults['data'] = state
+        if not persist:
+            return cls(id=state.get('id', None), **defaults), False
         if 'id' not in state:
             logging.warn("Won't persist because there is no ID. "
                          "It may appends with invoice.upcoming. "
@@ -64,9 +93,34 @@ class StripeObject(models.Model, metaclass=StripeMeta):
     def refresh_from_state(self, state):
         """Refresh from a stripe state
         """
-        # TODO: ensure state['id'] == self.id before proceeding
+        assert self.id == state['id']
+        assert self.data['object'] == state['object']
         self.data = state
         self.save(update_fields=['data'])
+
+    def refresh_related_objects(self, *names, persist=False):
+        """Refresh related objects
+        """
+        fields = [
+            f for f in self._meta.get_fields()
+            if isinstance(f, fields.ForeignKey)
+        ]
+        if names:
+            fields = [f for f in fields if f.name in names]
+
+        fom = ((f, getattr(f.related_model, '_stripe_object'), f.related_model) for f in fields)
+        fom = [(f, o, m) for f, o, m in fom if o is not None]
+
+        results = {}
+        for f, o, m in fom:
+            stripe_id = getattr(self, f'{f.name}_id', None)
+            if stripe_id is None:
+                results[f.name] = None
+            else:
+                state = state_factory({'object': o, 'id': stripe_id})
+                state.refresh()
+                results[f.name], _ = m.ingest(state, stripe.api_version, persist=persist)
+        return results
 
     class Meta:
         abstract = True
@@ -76,6 +130,69 @@ class StripeObject(models.Model, metaclass=StripeMeta):
 
     def __str__(self):
         return str(self.id or '-')
+
+
+class Account(StripeObject, object='account'):
+    country = fields.CharField(source='country')
+    created_at = fields.DateTimeField(source='created')
+    debit_negative_balances = fields.BooleanField(source='debit_negative_balances')
+    email = fields.CharField(source='email')
+    support_email = fields.CharField(source='support_email')
+    support_phone = fields.CharField(source='support_phone')
+    type = fields.CharField(source='type')
+
+
+class Application(StripeObject, object='application'):
+    """Custom object, not documented in Stripe as for 2018-06-19
+    """
+    name = fields.CharField(source='name')
+
+
+class IssuerFraudRecord(StripeObject, object='issuer_fraud_record'):
+    """Custom object, not documented in Stripe as for 2018-06-19
+    """
+    charge = fields.ForeignKey('rayures.Charge', related_name='issuer_fraud_records', source='charge')
+    created_at = fields.DateTimeField(source='created')
+    post_date = fields.DateTimeField(source='created')
+    fraud_type = fields.CharField(source='fraud_type')
+
+
+class Payout(StripeObject, object='payout'):
+    type = fields.CharField(source='type')
+    amount = fields.PriceField(source='amount')
+    method = fields.CharField(source='method')
+    status = fields.CharField(source='status')
+    created_at = fields.DateTimeField(source='created')
+    source_type = fields.CharField(source='source_type')
+    arrival_date = fields.DateTimeField(source='created')
+    failure_code = fields.CharField(source='failure_code')
+    failure_message = fields.CharField(source='failure_message')
+    balance_transaction = fields.ForeignKey('rayures.BalanceTransaction',
+                                            related_name='+',
+                                            source='balance_transaction')
+    failure_balance_transaction = fields.ForeignKey('rayures.BalanceTransaction',
+                                                    related_name='+',
+                                                    source='failure_balance_transaction')
+    destination = fields.ForeignKey('rayures.BankAccount',
+                                    related_name='+',
+                                    source='destination')
+
+    @property
+    def failure(self):
+        return PayoutFailure(self.failure_code, self.failure_message, self.failure_balance_transaction)
+
+
+class BankAccount(StripeObject, object='bank_account'):
+    account_holder_name = fields.CharField(source='account_holder_name')
+    account_holder_type = fields.CharField(source='account_holder_type')
+    bank_name = fields.CharField(source='bank_name')
+    currency = fields.CharField(source='currency')
+    fingerprint = fields.CharField(source='fingerprint')
+    last4 = fields.CharField(source='last4')
+    routing_number = fields.CharField(source='routing_number')
+    status = fields.CharField(source='status')
+    customer = fields.ForeignKey('rayures.Customer', related_name='+', source='customer')
+    default_for_currency = fields.BooleanField(source='default_for_currency')
 
 
 class BalanceTransaction(StripeObject, object='balance_transaction'):
@@ -92,7 +209,9 @@ class BalanceTransaction(StripeObject, object='balance_transaction'):
 class Charge(StripeObject, object='charge'):
     amount = fields.PriceField(source='amount')
     amount_refunded = fields.PriceField(source='amount_refunded')
-    balance_transaction = fields.ForeignKey('rayures.BalanceTransaction', related_name='charges', source='balance_transaction')
+    balance_transaction = fields.ForeignKey('rayures.BalanceTransaction',
+                                            related_name='charges',
+                                            source='balance_transaction')
     captured = fields.BooleanField(source='captured')
     created_at = fields.DateTimeField(source='created')
     # customer_id = fields.CharField(source='customer')
@@ -108,7 +227,9 @@ class Charge(StripeObject, object='charge'):
     order = fields.ForeignKey('rayures.Order', related_name='charges', source='order')
     # source_id = fields.CharField(source='source.id')
     source = fields.ForeignKey('rayures.Source', related_name='charges', source='source.id')
-    balance_transaction_id = fields.CharField(source='balance_transaction')
+    balance_transaction = fields.ForeignKey('rayures.BalanceTransaction',
+                                            related_name='charges',
+                                            source='balance_transaction')
 
 
 class Card(StripeObject, object='card'):
@@ -223,7 +344,9 @@ class Product(StripeObject, object='product'):
 
 class Refund(StripeObject, object='refund'):
     amount = fields.PriceField(source='amount')
-    balance_transaction_id = fields.CharField(source='balance_transaction')
+    balance_transaction = fields.ForeignKey('rayures.BalanceTransaction',
+                                            related_name='charges',
+                                            source='balance_transaction')
     charge = fields.ForeignKey('rayures.Charge', related_name='refunds', source='charge')
     created_at = fields.DateTimeField(source='created')
     reason = fields.CharField(source='reason')
@@ -288,7 +411,9 @@ class Customer(StripeObject, object='customer'):
 
 class Dispute(StripeObject, object='dispute'):
     amount = fields.PriceField(source='amount')
-    balance_transaction = fields.ForeignKey('rayures.BalanceTransaction', related_name='disputes', source='balance_transaction')
+    balance_transaction = fields.ForeignKey('rayures.BalanceTransaction',
+                                            related_name='disputes',
+                                            source='balance_transaction')
     # FIXME: stripe expose a balance_transactions array[]. see how to expose it?
     # charge_id = fields.CharField(source='charge')
     charge = fields.ForeignKey('rayures.Charge', related_name='disputes', source='charge')
@@ -355,6 +480,7 @@ class Entity:
     def __init__(self, data):
         self.data = data
 
+
 class Discount(Entity):
 
     @property
@@ -399,3 +525,10 @@ class BalanceItem(Entity):
     @property
     def source_types(self):
         return self.data['source_types']
+
+
+class PayoutFailure:
+    def __init__(self, code, message, balance_transaction):
+        self.code = code
+        self.message = message
+        self.balance_transaction = balance_transaction

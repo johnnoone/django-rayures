@@ -13,6 +13,7 @@ pylama = ">=7.4.3"
 pytest = "*"
 pytest-django = "*"
 pytest-cov = "*"
+pytest-vcr = "*"
 
 [requires]
 python_version = "3.6"

@@ -45,3 +45,16 @@ Implement your logic via hooks into your apps::
     @listen('customer.created')
     def my_hook_2(event, obj):
         pass
+
+
+Features:
+
+* automatted traces on webhook calls (callees & api)::
+
+    {"success": true, "traces": {"callees": [], "subcalls": []}}
+
+* denormalisation of stripe object into django models
+* django admin let explore stripe objects
+* some django models integration (refresh_from_state...)
+* logging (rayures.*)
+* priorities on events (100 by default)

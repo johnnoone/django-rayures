@@ -2,7 +2,6 @@ import decimal
 import hmac
 from .objs import Price
 from datetime import datetime
-from django.conf import settings
 from django.utils import timezone
 from functools import singledispatch
 from hashlib import sha256
