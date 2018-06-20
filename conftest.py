@@ -26,7 +26,10 @@ DEFAULT_SETTINGS = dict(
     SITE_ID=1,
     ROOT_URLCONF="rayures.urls",
     SECRET_KEY="notasecret",
-    STRIPE_API_KEY=os.getenv("STRIPE_SECRET_KEY", "DUMMY")
+    STRIPE_API_KEY=os.getenv("STRIPE_SECRET_KEY", "DUMMY"),
+    STRIPE_PUBLISHABLE_KEY=os.getenv("STRIPE_PUBLISHABLE_KEY", "DUMMY"),
+    STRIPE_ENDPOINT_SECRET=os.getenv("STRIPE_ENDPOINT_SECRET", "DUMMY"),
+    STRIPE_CUSTOMER_FINDER="rayures.integration.BaseCustomerFinder"
 )
 
 

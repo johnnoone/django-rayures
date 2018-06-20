@@ -1,17 +1,46 @@
-Integrate Stripe into django
-============================
+==============
+Django rayures
+==============
+
+Rayure is a Django app that integrates Stripe_.
+It plugs stripe objects into models via webhooks,
+and let you make your custom listener.
+
+It also gives some utilitary classes.
+
+Works only with python >= 3.6 and postgresql >= 9.4.
 
 
-Works only with python 3.6 and postgresql 9.4.
+Quick start
+-----------
 
-Configure your stripe API key into settings::
+
+1. Configure your stripe API key into settings::
 
     # project_dir/settings.py
     STRIPE_API_KEY = "YOUR API KEY"
+    STRIPE_ENDPOINT_SECRET = "YOUR ENDPOINT SECRET"
+    STRIPE_PUBLISHABLE_KEY = "YOUR PUBLISHABLE KEY"
+
+    STRIPE_CUSTOMER_FINDER = "your.project.CustomerFinder"
     INSTALLED_APPS += ['rayures']
 
 
-Add custom routes::
+2. Implement your customer finder::
+
+    # your/project.py
+    from rayures.integration import BaseCustomerFinder
+
+    class CustomerFinder(BaseCustomerFinder):
+        def find(self, request):
+            if request.user.is_authenticated:
+                return request.user.customer
+
+    # project_dir/settings.py
+    STRIPE_CUSTOMER_FINDER = "your.project.CustomerFinder"
+
+
+3. Add custom routes::
 
     # project_dir/urls.py
 
@@ -23,17 +52,33 @@ Add custom routes::
     ]
 
 
-In stripe.com, declare your webhook path::
+4. In stripe.com dashboard, add the new webhook url::
 
     http://YOURPROJECT_URL/YOUR_PREFIX/web-hook
 
 
-In your client apps, use the ephemeral key url::
 
-    http://YOURPROJECT_URL/YOUR_PREFIX/ephemeral-key
+Ephemeral keys
+--------------
+
+Publishable key is exposed at http://YOURPROJECT_URL/YOUR_PREFIX/config::
+
+    {
+      "publishable_key": "YOUR PUBLISHABLE KEY"
+    }
+
+Then configure your client to hit http://YOURPROJECT_URL/YOUR_PREFIX/ephemeral-key::
+
+    {
+      "key": "GENERATED EPHEMERAL KEY"
+    }
 
 
-Implement your logic via hooks into your apps::
+Event listeners
+---------------
+
+
+You can implement your logic via hooks into your apps::
 
     # your_app/stripe_webhooks
     from rayures import listen
@@ -47,7 +92,8 @@ Implement your logic via hooks into your apps::
         pass
 
 
-Features:
+Features
+--------
 
 * automatted traces on webhook calls (callees & api)::
 
@@ -58,3 +104,18 @@ Features:
 * some django models integration (refresh_from_state...)
 * logging (rayures.*)
 * priorities on events (100 by default)
+* soft deletion::
+
+    Customer.objects.alive()  # current alive customers
+    Customer.objects.dead()  # deleted customers
+    Customer.objects.all()  # every customers
+
+* instrumentation of calls::
+
+    from rayures.instrumentation import instrument_client
+    with instrument_client() as subcalls:
+        stripe.Customer.list()
+    print(subcalls)
+
+
+.. _Stripe: https://stripe.com

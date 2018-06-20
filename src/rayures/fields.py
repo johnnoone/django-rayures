@@ -123,6 +123,7 @@ class StripeField(models.Field):
             source (str): the path in data JSON
         """
         self.source = source
+        kwargs['null'] = True
         kwargs['editable'] = False
         kwargs['serialize'] = False
         super().__init__(*args, **kwargs)

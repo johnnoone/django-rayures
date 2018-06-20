@@ -8,6 +8,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         cls = apps.get_model('rayures', 'Event')
-        for event in cls.objects.all().order_by('created_at'):
+        qs = cls.objects.all()
+        # qs = qs.filter(type='plan.deleted')
+        for event in qs.order_by('created_at'):
             print(event, event.created_at)
             dispatch(event)

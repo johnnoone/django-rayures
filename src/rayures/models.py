@@ -8,6 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.db.models.base import ModelBase
+from django.utils import timezone
 
 registry = {}
 
@@ -61,39 +62,93 @@ class RayuresMeta(models.Model):
         return f'{self.content_type} {self.id}'
 
 
+class SoftDeletionQuerySet(models.QuerySet):
+    def delete(self):
+        return super().update(deleted_at=timezone.now())
+
+    def hard_delete(self):
+        return super().delete()
+
+    def alive(self):
+        return self.filter(deleted_at=None)
+
+    def dead(self):
+        return self.exclude(deleted_at=None)
+
+
 class StripeObject(models.Model, metaclass=StripeMeta):
     id = models.CharField(max_length=255, primary_key=True, editable=False)
     api_version = models.CharField(max_length=12, editable=False)
     data = JSONField(default=dict)
     events = GenericRelation('rayures.Event')
 
-    @classmethod
-    def ingest(cls, state, persist=False, api_version=None, **defaults):
-        assert cls._stripe_object == state['object']
+    deleted_at = models.DateTimeField(editable=False, null=True)
+    objects = SoftDeletionQuerySet.as_manager()
 
+    def delete(self):
+        self.deleted_at = timezone.now()
+        self.save(update_fields=['deleted_at'])
+
+    def hard_delete(self):
+        super().delete()
+
+    @classmethod
+    def ingest(cls, state, *, delete=False, persist=False, api_version=None, **defaults):
+        assert cls._stripe_object == state['object']
+        delete = state.get('deleted', delete)
         defaults['api_version'] = api_version or stripe.api_version
-        defaults['data'] = state
-        if not persist:
-            return cls(id=state.get('id', None), **defaults), False
+        defaults['data'] = dict(state)
         if 'id' not in state:
+            defaults['deleted_at'] = timezone.now() if delete else None
             logging.warn("Won't persist because there is no ID. "
                          "It may appends with invoice.upcoming. "
                          "object %s" % dict(state))
             return cls(id=None, **defaults), False
-        id = state['id']
-        return cls.objects.update_or_create(id=id, defaults=defaults)
+        object_id = state['id']
+        if state.get('deleted', None):
+            # avoid to make mistakes with data
+            if len(defaults['data']) == 2:
+                defaults.pop('data')
+
+        if not persist:
+            instance = cls.objects.filter(id=object_id).first()
+            if instance:
+                if delete and instance.deleted_at is None:
+                    instance.deleted_at = timezone.now()
+                instance.__dict__.update(defaults)
+            else:
+                defaults['deleted_at'] = timezone.now() if delete else None
+                instance = cls(id=object_id, **defaults)
+            return instance, False
+
+        # TODO: should use a lock system here like with redis, or postgresql upsert...
+        instance, created = cls.objects.update_or_create(id=object_id, defaults=defaults)
+        if delete and instance.deleted_at is None:
+            instance.delete()
+        return instance, created
 
     def refresh_from_stripe(self):
         """Refresh current object from stripe.
         """
+        if self.deleted_at is not None:
+            # TODO: warn won't refresh because it's deleted
+            return
         state = state_factory(self)
-        state.refesh()
-        self.refresh_from_state(state)
+        try:
+            state.refesh()
+        except stripe.error.InvalidRequestError as err:
+            # TODO: mark it deleted now, but should have been done previously
+            logging.warn(f"Tried to refresh {self.id} from stripe but seems to not exists: {err}")
+            self.delete()
+        else:
+            self.refresh_from_state(state)
 
     def refresh_from_state(self, state):
         """Refresh from a stripe state
         """
         assert self.id == state['id']
+        if state.get('deleted', False):
+            return self.delete()
         assert self.data['object'] == state['object']
         self.data = state
         self.save(update_fields=['data'])
@@ -119,7 +174,7 @@ class StripeObject(models.Model, metaclass=StripeMeta):
             else:
                 state = state_factory({'object': o, 'id': stripe_id})
                 state.refresh()
-                results[f.name], _ = m.ingest(state, stripe.api_version, persist=persist)
+                results[f.name], _ = m.ingest(state, api_version=stripe.api_version, persist=persist)
         return results
 
     class Meta:
@@ -254,6 +309,7 @@ class Coupon(StripeObject, object='coupon'):
     duration = fields.CharField(source='duration')
     name = fields.CharField(source='name')
     redeem_by = fields.DateTimeField(source='redeem_by')
+    livemode = fields.BooleanField(source='livemode')
 
 
 # class Discount:  # Make it an entity
@@ -289,6 +345,7 @@ class Invoice(StripeObject, object='invoice'):
     hosted_invoice_url = fields.CharField(source='hosted_invoice_url')
     number = fields.CharField(source='number')
     receipt_number = fields.CharField(source='receipt_number')
+    livemode = fields.BooleanField(source='livemode')
 
     @property
     def discount(self):
@@ -312,6 +369,7 @@ class InvoiceItem(StripeObject, object='invoiceitem'):
     quantity = fields.IntegerField(source='quantity')
     proration = fields.BooleanField(source='proration')
     discountable = fields.BooleanField(source='discountable')
+    livemode = fields.BooleanField(source='livemode')
 
 
 class Order(StripeObject, object='order'):
@@ -330,6 +388,7 @@ class Order(StripeObject, object='order'):
     canceled_at = fields.DateTimeField(source='status_transitions.canceled')
     fulfiled_at = fields.DateTimeField(source='status_transitions.fulfiled')
     returned_at = fields.DateTimeField(source='status_transitions.returned')
+    livemode = fields.BooleanField(source='livemode')
 
 
 class Product(StripeObject, object='product'):
@@ -340,6 +399,7 @@ class Product(StripeObject, object='product'):
     active = fields.BooleanField(source='active')
     created_at = fields.DateTimeField(source='created')
     updated_at = fields.DateTimeField(source='updated')
+    livemode = fields.BooleanField(source='livemode')
 
 
 class Refund(StripeObject, object='refund'):
@@ -360,6 +420,7 @@ class Refund(StripeObject, object='refund'):
     active = fields.BooleanField(source='active')
     created_at = fields.DateTimeField(source='created')
     updated_at = fields.DateTimeField(source='updated')
+    livemode = fields.BooleanField(source='livemode')
 
 
 # TODO: Token ?
@@ -371,6 +432,7 @@ class SKU(StripeObject, object='sku'):
     updated_at = fields.DateTimeField(source='updated')
     # product_id = fields.CharField(source='product')
     product = fields.ForeignKey('rayures.Product', related_name='skus', source='product')
+    livemode = fields.BooleanField(source='livemode')
 
 
 class Source(StripeObject, object='source'):
@@ -379,6 +441,7 @@ class Source(StripeObject, object='source'):
     type = fields.CharField(source='type')
     usage = fields.CharField(source='usage')
     status = fields.CharField(source='status')
+    livemode = fields.BooleanField(source='livemode')
 
 
 class Transfer(StripeObject, object='transfer'):
@@ -390,6 +453,7 @@ class Transfer(StripeObject, object='transfer'):
     status = fields.CharField(source='status')
     created_at = fields.DateTimeField(source='created')
     balance_transaction_id = fields.CharField(source='balance_transaction')
+    livemode = fields.BooleanField(source='livemode')
 
 
 class Customer(StripeObject, object='customer'):
@@ -402,6 +466,7 @@ class Customer(StripeObject, object='customer'):
     delinquent = fields.BooleanField(source='delinquent')
     # discount_id = fields.CharField(source='discount')
     # discount = fields.ForeignKey('rayures.Source', related_name='customers', source='discount')
+    livemode = fields.BooleanField(source='livemode')
 
     @property
     def discount(self):
@@ -420,6 +485,7 @@ class Dispute(StripeObject, object='dispute'):
     created_at = fields.DateTimeField(source='created')
     reason = fields.CharField(source='reason')
     status = fields.CharField(source='status')
+    livemode = fields.BooleanField(source='livemode')
 
 
 class Subscription(StripeObject, object='subscription'):
@@ -443,6 +509,7 @@ class Subscription(StripeObject, object='subscription'):
     # discount = fields.ForeignKey('rayures.Discount', related_name='subscriptions', source='discount')
     quantity = fields.IntegerField(source='quantity')
     days_until_due = fields.IntegerField(source='days_until_due')
+    livemode = fields.BooleanField(source='livemode')
 
     @property
     def discount(self):
@@ -460,6 +527,7 @@ class Plan(StripeObject, object='plan'):
     aggregate_usage = fields.CharField(source='aggregate_usage')
     billing_scheme = fields.CharField(source='billing_scheme')
     usage_type = fields.CharField(source='usage_type')
+    livemode = fields.BooleanField(source='livemode')
 
 
 class Event(StripeObject, object='event'):
@@ -474,6 +542,7 @@ class Event(StripeObject, object='event'):
     content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True)
     object_id = models.CharField(default=None, max_length=50, null=True)
     content_object = GenericForeignKey('content_type', 'object_id')
+    livemode = fields.BooleanField(source='livemode')
 
 
 class Entity:

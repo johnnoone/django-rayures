@@ -1,16 +1,24 @@
 import logging
 import stripe
 from .exceptions import DispatchException
-from .models import Customer, Event
 from .events import dispatch
+from .models import Customer, Event
 from contextlib import suppress
-from django.conf import settings
+from django.apps import apps
 from django.http import HttpResponse, JsonResponse
 from heroes.exceptions import InvalidInputsError
 
 
 def get_customer(request) -> Customer:
-    raise NotImplementedError
+    return apps.app_configs['rayures'].customer_loader(request)
+
+
+def stripe_config(request):
+    """Serve configuration
+    """
+    return JsonResponse({
+        'publishable_key': apps.app_configs['rayures'].publishable_key
+    })
 
 
 def stripe_ephemeral_key(request):
@@ -21,7 +29,7 @@ def stripe_ephemeral_key(request):
     customer = get_customer(request)
     api_version = request.data.get('api_version', stripe.api_version)
     try:
-        data = stripe.EphemeralKey.create(customer=customer.stripe_id,
+        data = stripe.EphemeralKey.create(customer=customer.id,
                                           api_version=api_version)
     except stripe.error.InvalidRequestError as error:
         with suppress(KeyError):
@@ -38,9 +46,9 @@ def stripe_web_hook(request):
     if request.method != 'POST':
         raise
 
-    if getattr(settings, 'STRIPE_ENDPOINT_SECRET', None) is not None:
+    endpoint_secret = apps.app_configs['rayures'].endpoint_secret
+    if endpoint_secret is not None:
         # verify signature
-        endpoint_secret = settings.STRIPE_ENDPOINT_SECRET
         payload = request.body
         sig_header = request.META['HTTP_STRIPE_SIGNATURE']
         try:

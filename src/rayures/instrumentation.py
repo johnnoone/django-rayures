@@ -11,10 +11,12 @@ class InstrumentedClient(stripe.http_client.HTTPClient):
         return getattr(self.client, name)
 
     def request(self, method, url, headers, post_data=None):
-        data = [method, url, -1]
+        data = [method, url, -1, None]
         try:
             content, status_code, headers = self.client.request(method, url, headers, post_data)
             data[2] = status_code
+            if 'Request-Id' in headers:
+                data[3] = headers['Request-Id']
         finally:
             self.calls.append(data)
         return content, status_code, headers

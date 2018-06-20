@@ -33,9 +33,24 @@ class ModelAdmin(admin.ModelAdmin):
 
     def get_list_display(self, request):
         list_display = super().get_list_display(request)
+        if 'deleted_at' not in list_display:
+            list_display = list_display + ('deleted_at',)
         if 'show_events_url' not in list_display:
             list_display = list_display + ('show_events_url',)
         return list_display
+
+    def get_list_filter(self, request):
+        """
+        Return a sequence containing the fields to be displayed as filters in
+        the right sidebar of the changelist page.
+        """
+        list_filter = super().get_list_filter(request)
+        for field in self.model._meta.get_fields():
+            if field.name in ('status', 'type', 'created_at', 'livemode') and field.name not in list_filter:
+                list_filter = list_filter + (field.name,)
+        if 'deleted_at' not in list_filter:
+            list_filter = list_filter + ('deleted_at',)
+        return list_filter
 
     def show_events_url(self, obj):
         url = f'{reverse("admin:rayures_event_changelist")}?q={obj.id}'
@@ -217,7 +232,7 @@ class ChargeAdmin(ModelAdmin):
 @admin.register(Customer)
 class CustomerAdmin(ModelAdmin):
     list_display = 'id', 'email', 'delinquent', 'invoice_prefix', 'created_at', 'account_balance'
-    list_filter = 'created_at', 'delinquent',
+    list_filter = 'created_at', 'delinquent', 'deleted_at',
     search_fields = '=id', '=email'
     readonly_fields = 'default_source',
 

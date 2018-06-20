@@ -1,8 +1,8 @@
 import logging
 import stripe
 import traceback
+from .instrumentation import instrument_client
 from .models import registry as models_registry, Balance, Event, Discount, RayureEventProcessingError
-from .instrument import instrument_client
 from .prio import PrioritySet
 from django.contrib.contenttypes.models import ContentType
 
@@ -40,15 +40,14 @@ def load(state, **defaults) -> Loaded:
     elif obj == 'discount':
         instance = Discount(state)
         return Loaded(instance, False)
-    else:
-        raise NotImplementedError("Cannot persist", obj, state)
-    return Loaded(None)
+    raise NotImplementedError("Cannot load", obj, state)
 
 
 def dispatch(event: 'Event'):
     name = event.type
     state = event.data['data']['object']
-    obj = load(state, api_version=event.api_version).obj
+    delete = event.type.endswith('.deleted')
+    obj = load(state, api_version=event.api_version, delete=delete).obj
     # TODO: link non persisted obj, like Discount and invoice.upcoming, customer.discount.created
     if state['object'] in models_registry and state.get('id', None):
         cls = models_registry[state['object']]
@@ -67,7 +66,7 @@ def dispatch(event: 'Event'):
                 log_id = log_event_exception(error, func, event).id
                 errors.append((func, log_id, error))
         if errors:
-            raise DispatchException('multiple errors', event=event, exceptions=errors, data={
+            raise DispatchException('Failed dispatching due to several errors', event=event, exceptions=errors, data={
                 'api_call': subcalls, 'callees': callees
             })
     return {'api_call': subcalls, 'callees': callees}
