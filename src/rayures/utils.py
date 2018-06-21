@@ -84,10 +84,10 @@ def charge_now(ts, ref=None):
 
 
 def sign_request(payload, secret, timestamp=None):
-    timestamp = timestamp or time()
-    signed_payload = ("%d.%s" % (timestamp, payload)).encode('utf-8')
+    timestamp = int(timestamp or time())
+    signed_payload = f"{timestamp}.{payload}".encode('utf-8')
     expected_signature = hmac \
         .new(secret.encode('utf-8'), msg=signed_payload, digestmod=sha256) \
         .hexdigest()
-    signature = 't=%d,v1=%s' % (timestamp, expected_signature)
+    signature = f"t={timestamp},v1={expected_signature}"
     return signature, payload, timestamp

@@ -1,18 +1,19 @@
+import json
 import logging
 import stripe
-from .exceptions import DispatchException
+from .exceptions import DispatchException, InvalidInputsError
 from .events import dispatch
 from .models import Customer, Event
 from contextlib import suppress
 from django.apps import apps
 from django.http import HttpResponse, JsonResponse
-from heroes.exceptions import InvalidInputsError
+from django.views.decorators.http import require_http_methods
 
 
-def get_customer(request) -> Customer:
-    return apps.app_configs['rayures'].customer_loader(request)
+logger = logging.getLogger('rayures')
 
 
+@require_http_methods(["GET"])
 def stripe_config(request):
     """Serve configuration
     """
@@ -39,43 +40,59 @@ def stripe_ephemeral_key(request):
     return JsonResponse({'key': data})
 
 
+@require_http_methods(["POST"])
 def stripe_web_hook(request):
     """Handle stripe webhooks
     """
-
     if request.method != 'POST':
-        raise
+        return HttpResponse(status=400)
 
+    payload = request.body
     endpoint_secret = apps.app_configs['rayures'].endpoint_secret
-    if endpoint_secret is not None:
+    if endpoint_secret:
         # verify signature
-        payload = request.body
-        sig_header = request.META['HTTP_STRIPE_SIGNATURE']
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE', None)
+        if not sig_header:
+            return HttpResponse(status=400)
         try:
-            payload = stripe.Webhook.construct_event(
+            state = stripe.Webhook.construct_event(
                 request.body, sig_header, endpoint_secret)
         except ValueError as error:
             # Invalid payload
-            logging.exception('stripe_web_hook ValueError - error: %s' % error)
+            logger.error('stripe_web_hook ValueError - error: %s' % error)
             return HttpResponse(status=400)
         except stripe.error.SignatureVerificationError as error:
             # Invalid signature
-            logging.exception('stripe_web_hook SignatureVerificationError - error: %s' % error)
+            logger.error('stripe_web_hook SignatureVerificationError - error: %s' % error)
             return HttpResponse(status=400)
     else:
-        payload = request.data
-
-    if payload['type'] == 'ping':
+        state = json.loads(payload)
+    if state['type'] == 'ping':
         return HttpResponse()
 
-    try:
-        payload = request.data
-        event, created = Event.ingest(payload, persist=True)
-        if created:
-            data = dispatch(event)
-    except DispatchException as error:
-        logging.exception(error)
-        data = {'error': {'name': error.__class__.__name__, 'message': str(error)}, 'data': error.data}
-    else:
-        data = {'success': True, 'data': data}
+    data = handle_dispatch(state)
     return JsonResponse(data, status=200)
+
+
+def handle_dispatch(state):
+    try:
+        event, created = Event.ingest(state, persist=True)
+        if can_handle_dispatch(event, created):
+            process = dispatch(event)
+    except DispatchException as error:
+        data = {'errors': error.formatted_errors}
+        process = error.process
+    else:
+        data = {}
+    data.update({'id': process.id, 'status': process.status, 'traces': process.traces})
+    return data
+
+
+def get_customer(request) -> Customer:
+    # use custom loader configured
+    return apps.app_configs['rayures'].customer_loader(request)
+
+
+def can_handle_dispatch(event, created):
+    # TODO: check previous proc statuses
+    return True

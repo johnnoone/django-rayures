@@ -1,5 +1,6 @@
 import stripe
 import logging
+import traceback
 from . import fields
 from .utils import price_from_stripe, dt_from_stripe
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -10,6 +11,7 @@ from django.db import models
 from django.db.models.base import ModelBase
 from django.utils import timezone
 
+logger = logging.getLogger('rayures')
 registry = {}
 
 
@@ -40,11 +42,56 @@ class StripeMeta(ModelBase):
         return cls
 
 
-class RayureEventProcessingError(models.Model):
+class Trace:
+    def __init__(self, func, subcalls, parent):
+        self.data = {
+            'func': f'{func.__module__}.{func.__qualname__}',
+            'api_calls': subcalls
+        }
+        self.parent = parent
+
+    def log_error(self, error):
+        # most of stripe.StripeError have http_body
+        http_body = getattr(error, 'http_body', None) or ''
+        lines = traceback.format_exception(type(error), error, error.__traceback__)
+        formatted = ''.join(lines)
+
+        return self.parent.errors.create(
+            http_body=http_body,
+            func=self.data['func'],
+            message=str(error),
+            traceback=formatted)
+
+
+class RayureEventProcess(models.Model):
+    STATUS_CHOICES = [
+        ('received', 'received'),
+        ('success', 'success'),
+        ('failure', 'failure')
+    ]
     event = models.ForeignKey("rayures.Event", related_name='+', on_delete=models.CASCADE)
-    data = models.TextField()
-    func = models.CharField(max_length=500, null=True)
-    message = models.CharField(max_length=500)
+    status = models.CharField(choices=STATUS_CHOICES, max_length=12, default='received')
+    started_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(editable=False, null=True)
+    traces = JSONField(default=list)
+
+    def log_trace(self, func, subcalls):
+        trace = Trace(func, subcalls, self)
+        self.traces.append(trace.data)
+        return trace
+
+    class Meta:
+        verbose_name = 'Rayure event process'
+        verbose_name_plural = 'Rayure event processes'
+
+
+class RayureEventProcessingError(models.Model):
+    process = models.ForeignKey("rayures.RayureEventProcess",
+                                related_name='errors',
+                                on_delete=models.CASCADE)
+    func = models.TextField(null=True)
+    http_body = models.TextField()
+    message = models.TextField()
     traceback = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     acknowledged_at = models.DateTimeField(null=True)
@@ -92,6 +139,12 @@ class StripeObject(models.Model, metaclass=StripeMeta):
     def hard_delete(self):
         super().delete()
 
+    def rebound_fields(self):
+        for field in self._meta.private_fields:
+            if isinstance(field, fields.StripeField):
+                field.rebound(self)
+        return self
+
     @classmethod
     def ingest(cls, state, *, delete=False, persist=False, api_version=None, **defaults):
         assert cls._stripe_object == state['object']
@@ -100,10 +153,13 @@ class StripeObject(models.Model, metaclass=StripeMeta):
         defaults['data'] = dict(state)
         if 'id' not in state:
             defaults['deleted_at'] = timezone.now() if delete else None
-            logging.warn("Won't persist because there is no ID. "
-                         "It may appends with invoice.upcoming. "
-                         "object %s" % dict(state))
-            return cls(id=None, **defaults), False
+            logger.warning("Won't persist because there is no ID. "
+                           "It may appends with invoice.upcoming. "
+                           "object %s" % state)
+            instance = cls(id=None, **defaults)
+            instance.rebound_fields()
+            return instance, False
+
         object_id = state['id']
         if state.get('deleted', None):
             # avoid to make mistakes with data
@@ -119,12 +175,14 @@ class StripeObject(models.Model, metaclass=StripeMeta):
             else:
                 defaults['deleted_at'] = timezone.now() if delete else None
                 instance = cls(id=object_id, **defaults)
+            instance.rebound_fields()
             return instance, False
 
         # TODO: should use a lock system here like with redis, or postgresql upsert...
         instance, created = cls.objects.update_or_create(id=object_id, defaults=defaults)
         if delete and instance.deleted_at is None:
             instance.delete()
+        instance.rebound_fields()
         return instance, created
 
     def refresh_from_stripe(self):
@@ -138,7 +196,7 @@ class StripeObject(models.Model, metaclass=StripeMeta):
             state.refesh()
         except stripe.error.InvalidRequestError as err:
             # TODO: mark it deleted now, but should have been done previously
-            logging.warn(f"Tried to refresh {self.id} from stripe but seems to not exists: {err}")
+            logger.warn(f"Tried to refresh {self.id} from stripe but seems to not exists: {err}")
             self.delete()
         else:
             self.refresh_from_state(state)
@@ -537,12 +595,12 @@ class Event(StripeObject, object='event'):
     idempotency_key = fields.CharField(source='request.idempotency_key')
     created_at = fields.DateTimeField(source='created')
     api_version = fields.CharField(source='api_version')
+    livemode = fields.BooleanField(source='livemode')
 
     # obj
     content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True)
     object_id = models.CharField(default=None, max_length=50, null=True)
     content_object = GenericForeignKey('content_type', 'object_id')
-    livemode = fields.BooleanField(source='livemode')
 
 
 class Entity:

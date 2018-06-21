@@ -2,7 +2,7 @@ import json
 from .models import (Account, Card, Charge, Coupon, Customer, Event, Invoice,
                      InvoiceItem, Order, Plan, Product, SKU, Source, Subscription,
                      Transfer, Refund, BankAccount, Payout, Application, IssuerFraudRecord,
-                     RayuresMeta, Dispute, RayureEventProcessingError)
+                     RayuresMeta, Dispute, RayureEventProcess, RayureEventProcessingError)
 from django.contrib import admin
 from django.contrib.postgres.fields import JSONField
 from django.forms import widgets
@@ -78,23 +78,30 @@ class RayuresMetaAdmin(admin.ModelAdmin):
     show_obj_url.short_description = 'Object'
 
 
-@admin.register(RayureEventProcessingError)
-class RayureEventProcessingErrorAdmin(admin.ModelAdmin):
-    list_display = 'id', 'created_at', 'message', 'event', 'event_type', 'show_event_url', 'func',
-    search_field = '=id', '=event', '=event__object_id',
-    readonly_fields = 'id', 'event', 'created_at', 'acknowledged_at', 'func', 'message', 'traceback', 'data',
+@admin.register(RayureEventProcess)
+class RayureEventProcessAdmin(admin.ModelAdmin):
+    list_display = 'id', 'event', 'status', 'started_at', 'ended_at', 'show_event_url'
+    search_field = '=id', '=event', '=errors__id', 'status', 'started_at', 'ended_at',
+    readonly_fields = 'id', 'event', 'status', 'started_at', 'ended_at',
 
     def has_add_permission(self, request):
         return False
-
-    def event_type(self, obj):
-        return obj.event.type
 
     def show_event_url(self, obj):
         url = f'{reverse("admin:rayures_event_changelist")}?q={obj.event_id}'
         return format_html(f'<a href="{url}">show event</a>')
     show_event_url.allow_tags = True
     show_event_url.short_description = 'Events'
+
+
+@admin.register(RayureEventProcessingError)
+class RayureEventProcessingErrorAdmin(admin.ModelAdmin):
+    list_display = 'id', 'created_at', 'message', 'process', 'func',
+    search_field = '=id', '=process', '=process__event',
+    readonly_fields = 'id', 'process', 'created_at', 'acknowledged_at', 'func', 'message', 'traceback', 'http_body',
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(Dispute)
@@ -258,7 +265,7 @@ class PlanAdmin(ModelAdmin):
 
 @admin.register(Event)
 class EventAdmin(ModelAdmin):
-    list_display = 'id', 'pending_webhooks', 'type', 'request_id', 'idempotency_key', 'created_at', 'object_id'
+    list_display = 'id', 'type', 'request_id', 'idempotency_key', 'created_at', 'object_id', 'show_obj_url',
     list_filter = 'type', 'created_at',
     readonly_fields = 'id', 'api_version', 'type', 'created_at', 'pending_webhooks', 'content_type', 'object_id',
     search_fields = '=id', '=request_id', '=object_id'

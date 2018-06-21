@@ -144,9 +144,14 @@ class StripeField(models.Field):
 
         self.concrete = False
         self.column = f'__{self.source}__'
-        proxy = type(self).proxy(self.source)
+        self.proxy = type(self).proxy(self.source)
         cls._meta.add_field(self, private=True)
-        setattr(cls, name, proxy)
+        setattr(cls, name, self.proxy)
+
+    def rebound(self, instance):
+        value = self.proxy.__get__(instance)
+        setattr(instance, self.attname, value)
+        pass
 
     def get_col(self, alias, output_field=None):
         col = super().get_col(alias, output_field)

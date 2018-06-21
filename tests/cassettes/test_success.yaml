@@ -1,0 +1,41 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Stripe-Version: ['2018-05-21']
+      User-Agent: ['Stripe/v1 PythonBindings/1.82.1 django-rayures/0+untagged.4.g361c53e.dirty
+          (https://lab.errorist.xyz/django/rayures)']
+      X-Stripe-Client-User-Agent: ['{"bindings_version": "1.82.1", "lang": "python",
+          "publisher": "stripe", "httplib": "requests", "lang_version": "3.6.5", "platform":
+          "Darwin-17.6.0-x86_64-i386-64bit", "uname": "Darwin mutiny.local 17.6.0
+          Darwin Kernel Version 17.6.0: Tue May  8 15:22:16 PDT 2018; root:xnu-4570.61.1~1/RELEASE_X86_64
+          x86_64 i386", "application": {"name": "django-rayures", "version": "0+untagged.4.g361c53e.dirty",
+          "url": "https://lab.errorist.xyz/django/rayures"}}']
+      authorization: [DUMMY]
+    method: GET
+    uri: https://api.stripe.com/v1/customers/cus_foo
+  response:
+    body: {string: "{\n  \"error\": {\n    \"code\": \"resource_missing\",\n    \"\
+        doc_url\": \"https://stripe.com/docs/error-codes/resource-missing\",\n   \
+        \ \"message\": \"No such customer: cus_foo\",\n    \"param\": \"id\",\n  \
+        \  \"type\": \"invalid_request_error\"\n  }\n}\n"}
+    headers:
+      Access-Control-Allow-Credentials: ['true']
+      Access-Control-Allow-Methods: ['GET, POST, HEAD, OPTIONS, DELETE']
+      Access-Control-Allow-Origin: ['*']
+      Access-Control-Expose-Headers: ['Request-Id, Stripe-Manage-Version, X-Stripe-External-Auth-Required,
+          X-Stripe-Privileged-Session-Required']
+      Access-Control-Max-Age: ['300']
+      Cache-Control: ['no-cache, no-store']
+      Connection: [keep-alive]
+      Content-Length: ['223']
+      Content-Type: [application/json]
+      Date: ['Thu, 21 Jun 2018 13:45:25 GMT']
+      Request-Id: [req_ZepJhpXFbLEkLr]
+      Server: [nginx]
+      Stripe-Version: ['2018-05-21']
+    status: {code: 404, message: Not Found}
+version: 1
