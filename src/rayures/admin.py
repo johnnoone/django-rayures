@@ -61,10 +61,11 @@ class ModelAdmin(admin.ModelAdmin):
 
 @admin.register(RayuresMeta)
 class RayuresMetaAdmin(admin.ModelAdmin):
-    list_display = 'id', 'content_type', 'created_at', 'updated_at', 'deleted_at', 'show_obj_url'
-    search_field = '=id', 'created_at', 'updated_at', 'deleted_at',
-    readonly_fields = 'id', 'content_type', 'created_at', 'updated_at', 'deleted_at',
-    list_filter = 'content_type', 'created_at', 'updated_at', 'deleted_at',
+    list_display = 'id', 'content_type', 'created_at', 'updated_at', 'deleted_at', 'show_obj_url', 'source'
+    search_field = '=id', 'created_at', 'updated_at', 'deleted_at', '=event_id', '=request_id'
+    readonly_fields = ('id', 'content_type', 'created_at', 'updated_at',
+                       'deleted_at', 'event', 'request_id', 'idempotency_key', 'source',)
+    list_filter = 'content_type', 'created_at', 'updated_at', 'deleted_at', 'source'
 
     def has_add_permission(self, request):
         return False

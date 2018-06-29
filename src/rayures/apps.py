@@ -28,7 +28,7 @@ class RayuresConfig(AppConfig):
         self.customer_loader = cls()
 
         # Activate signals
-        from . import signals  # noqa
+        from . import tasks  # noqa
 
         # load webhook events
         from django.utils.module_loading import autodiscover_modules

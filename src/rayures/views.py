@@ -3,7 +3,8 @@ import logging
 import stripe
 from .exceptions import DispatchException, InvalidInputsError
 from .events import dispatch
-from .models import Customer, Event
+from .models import Customer
+from .reconciliation import reconciliate_event
 from contextlib import suppress
 from django.apps import apps
 from django.http import HttpResponse, JsonResponse
@@ -76,7 +77,7 @@ def stripe_web_hook(request):
 
 def handle_dispatch(state):
     try:
-        event, created = Event.ingest(state, persist=True)
+        event, created = reconciliate_event(state, persist=True)
         if can_handle_dispatch(event, created):
             process = dispatch(event)
     except DispatchException as error:

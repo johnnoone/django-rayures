@@ -3,14 +3,16 @@ from django.db import models
 from django.db.models.expressions import Col
 from django.db.models.lookups import IExact
 from django.db.models.fields.related_lookups import RelatedLookupMixin
+from django.db.models.signals import post_init
 
 __all__ = ['IntegerField']
 
 
 class DatetimeProxy:
-    def __init__(self, source):
+    def __init__(self, source, field_name):
         self.source = source
         self.path = source.split('.')
+        self.field_name = field_name
 
     def __get__(self, obj, type=None):
         if obj is None:
@@ -25,9 +27,10 @@ class DatetimeProxy:
 
 
 class CharProxy:
-    def __init__(self, source):
+    def __init__(self, source, field_name):
         self.source = source
         self.path = source.split('.')
+        self.field_name = field_name
 
     def __get__(self, obj, type=None):
         if obj is None:
@@ -42,9 +45,10 @@ class CharProxy:
 
 
 class IntegerProxy:
-    def __init__(self, source):
+    def __init__(self, source, field_name):
         self.source = source
         self.path = source.split('.')
+        self.field_name = field_name
 
     def __get__(self, obj, type=None):
         if obj is None:
@@ -59,9 +63,10 @@ class IntegerProxy:
 
 
 class PriceProxy:
-    def __init__(self, source):
+    def __init__(self, source, field_name):
         self.source = source
         self.path = source.split('.')
+        self.field_name = field_name
 
     def __get__(self, obj, type=None):
         if obj is None:
@@ -80,9 +85,10 @@ class PriceProxy:
 
 
 class BooleanProxy:
-    def __init__(self, source):
+    def __init__(self, source, field_name):
         self.source = source
         self.path = source.split('.')
+        self.field_name = field_name
 
     def __get__(self, obj, type=None):
         if obj is None:
@@ -137,16 +143,22 @@ class StripeField(models.Field):
 
     def contribute_to_class(self, cls, name):
         self.name = name
-        self.verbose_name = name
+        self.verbose_name = name.replace('_', ' ')
         self.field_name = name
         self.attname = name
         self.model = cls
 
         self.concrete = False
         self.column = f'__{self.source}__'
-        self.proxy = type(self).proxy(self.source)
+        self.proxy = type(self).proxy(self.source, self.attname)
         cls._meta.add_field(self, private=True)
-        setattr(cls, name, self.proxy)
+        if not getattr(cls, self.attname, None):
+            setattr(cls, self.attname, self.proxy)
+        if not cls._meta.abstract:
+            post_init.connect(self.rebound_fields, sender=cls)
+
+    def rebound_fields(self, instance, *args, **kwargs):
+        self.rebound(instance)
 
     def rebound(self, instance):
         value = self.proxy.__get__(instance)
@@ -188,6 +200,14 @@ class IntegerField(StripeField, models.IntegerField):
 class CharField(StripeField, models.CharField):
     # description = _("String (up to %(max_length)s)")
     proxy = CharProxy
+
+    # def __init__(self, *args, **kwargs):
+    #     """
+    #     Parameters:
+    #         source (str): the path in data JSON
+    #     """
+    #     kwargs['max_length'] = 2000
+    #     super().__init__(*args, **kwargs)
 
     def get_internal_type(self):
         return 'CharField'
@@ -232,7 +252,8 @@ class ForeignKey(models.ForeignKey):
         kwargs['db_constraint'] = False
         kwargs['db_index'] = False
         kwargs['null'] = True
-        kwargs['on_delete'] = models.SET_NULL
+        kwargs['default'] = None
+        kwargs['on_delete'] = models.DO_NOTHING
 
         # our
         kwargs['editable'] = False

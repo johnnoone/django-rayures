@@ -10,6 +10,7 @@ class Command(BaseCommand):
         # TODO: option to select only the one that have only failed or never processed
         cls = apps.get_model('rayures', 'Event')
         qs = cls.objects.all()
+        # qs = qs.filter(type__startswith='coupon.')
         for event in qs.order_by('created_at'):
-            print(event, event.created_at)
+            print(event, event.created_at, event.type)
             dispatch(event)

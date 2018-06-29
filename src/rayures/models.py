@@ -4,7 +4,7 @@ import traceback
 from . import fields
 from .utils import price_from_stripe, dt_from_stripe
 from django.contrib.contenttypes.fields import GenericForeignKey
-from django.contrib.contenttypes.fields import GenericRelation
+# from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.db import models
@@ -12,7 +12,7 @@ from django.db.models.base import ModelBase
 from django.utils import timezone
 
 logger = logging.getLogger('rayures')
-registry = {}
+PERSISTED_MODELS = {}
 
 
 def state_factory(instance):
@@ -34,10 +34,10 @@ def state_factory(instance):
 
 class StripeMeta(ModelBase):
     def __new__(metacls, name, bases, namespace, object=None):
-        global registry
+        global PERSISTED_MODELS
         cls = super().__new__(metacls, name, bases, namespace)
         if object:
-            registry[object] = cls
+            PERSISTED_MODELS[object] = cls
             cls._stripe_object = object
         return cls
 
@@ -105,6 +105,11 @@ class RayuresMeta(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True)
 
+    event = models.ForeignKey('rayures.Event', on_delete=models.DO_NOTHING, null=True)
+    idempotency_key = models.TextField(null=True)
+    request_id = models.TextField(null=True)
+    source = models.TextField(null=True)
+
     def __str__(self):
         return f'{self.content_type} {self.id}'
 
@@ -127,10 +132,14 @@ class StripeObject(models.Model, metaclass=StripeMeta):
     id = models.CharField(max_length=255, primary_key=True, editable=False)
     api_version = models.CharField(max_length=12, editable=False)
     data = JSONField(default=dict)
-    events = GenericRelation('rayures.Event')
 
     deleted_at = models.DateTimeField(editable=False, null=True)
     objects = SoftDeletionQuerySet.as_manager()
+
+    @property
+    def events(self):
+        # got events without the mess of GenericRelation('rayures.Event')
+        return Event.objects.filter(object_id=self.id)
 
     def delete(self):
         self.deleted_at = timezone.now()
@@ -144,46 +153,6 @@ class StripeObject(models.Model, metaclass=StripeMeta):
             if isinstance(field, fields.StripeField):
                 field.rebound(self)
         return self
-
-    @classmethod
-    def ingest(cls, state, *, delete=False, persist=False, api_version=None, **defaults):
-        assert cls._stripe_object == state['object']
-        delete = state.get('deleted', delete)
-        defaults['api_version'] = api_version or stripe.api_version
-        defaults['data'] = dict(state)
-        if 'id' not in state:
-            defaults['deleted_at'] = timezone.now() if delete else None
-            logger.warning("Won't persist because there is no ID. "
-                           "It may appends with invoice.upcoming. "
-                           "object %s" % state)
-            instance = cls(id=None, **defaults)
-            instance.rebound_fields()
-            return instance, False
-
-        object_id = state['id']
-        if state.get('deleted', None):
-            # avoid to make mistakes with data
-            if len(defaults['data']) == 2:
-                defaults.pop('data')
-
-        if not persist:
-            instance = cls.objects.filter(id=object_id).first()
-            if instance:
-                if delete and instance.deleted_at is None:
-                    instance.deleted_at = timezone.now()
-                instance.__dict__.update(defaults)
-            else:
-                defaults['deleted_at'] = timezone.now() if delete else None
-                instance = cls(id=object_id, **defaults)
-            instance.rebound_fields()
-            return instance, False
-
-        # TODO: should use a lock system here like with redis, or postgresql upsert...
-        instance, created = cls.objects.update_or_create(id=object_id, defaults=defaults)
-        if delete and instance.deleted_at is None:
-            instance.delete()
-        instance.rebound_fields()
-        return instance, created
 
     def refresh_from_stripe(self):
         """Refresh current object from stripe.
@@ -598,7 +567,7 @@ class Event(StripeObject, object='event'):
     livemode = fields.BooleanField(source='livemode')
 
     # obj
-    content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True)
+    content_type = models.ForeignKey(ContentType, on_delete=models.SET_DEFAULT, null=True, default=None)
     object_id = models.CharField(default=None, max_length=50, null=True)
     content_object = GenericForeignKey('content_type', 'object_id')
 
@@ -659,3 +628,6 @@ class PayoutFailure:
         self.code = code
         self.message = message
         self.balance_transaction = balance_transaction
+
+
+# TODO: order_return
