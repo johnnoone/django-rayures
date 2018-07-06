@@ -67,5 +67,6 @@ def test_expect_STRIPE_SIGNATURE(rf, event):
 
 def test_fake_STRIPE_SIGNATURE(rf, event):
     request = rf.post('/wh', HTTP_STRIPE_SIGNATURE='fo')
+    print('sign', request.META['HTTP_STRIPE_SIGNATURE'])
     response = view(request)
     assert response.status_code == 400

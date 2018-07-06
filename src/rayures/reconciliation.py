@@ -87,9 +87,10 @@ def squeeze_state(state, *,
         opts.update({
             'account': state.stripe_account,
             'object': type(state).class_name,
-            'id': state.stripe_id,
-            'api_version': state.stripe_version
+            'id': state.get('id', None)
         })
+        if state.stripe_version:
+            opts["api_version"] = state.stripe_version
     elif isinstance(state, stripe.stripe_response.StripeResponse):
         last_response = state
 
@@ -119,7 +120,7 @@ def squeeze_state(state, *,
 
 def squeeze_event(event) -> dict:
     opts = {"source": "webhook", "event_id": event.id}
-
+    print('zzz', event.api_version)
     if isinstance(event, stripe.Event):
         opts.update({
             "now": event["created"],  # FIXME: make it datetime,
@@ -192,12 +193,13 @@ def handle_persistable_model(data, object, id, persist, api_version, now, delete
     defaults = {
         'api_version': api_version
     }
-    # 100.00% of the time, deletion are a total mess
-    if data.get('deleted', None) is not True:
+    # 99.999% of the time, deletion are a total mess
+    if not data.get('deleted', None):
         defaults['data'] = data
 
     def load_instance(stripe_id, defaults, cls, qs, created, deleted, now):
         instance = qs.filter(id=stripe_id).first()
+        newborn = not instance
         if instance:
             for k, v in defaults.items():
                 setattr(instance, k, v)
@@ -211,12 +213,12 @@ def handle_persistable_model(data, object, id, persist, api_version, now, delete
         else:
             instance.updated_at = now
         instance.rebound_fields()
-        return instance
+        return instance, newborn
 
     if persist is True:
         with transaction.atomic():
             qs = cls.objects.select_for_update(of=('self',))
-            instance = load_instance(id, defaults, cls, qs, created, deleted, now)
+            instance, newborn = load_instance(id, defaults, cls, qs, created, deleted, now)
             instance.save()
         return Reconciliation(instance, True)
     else:

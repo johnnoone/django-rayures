@@ -1,4 +1,4 @@
-from .models import StripeObject, RayuresMeta, Event
+from .models import PersistedModel, RayuresMeta, Event
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from .signals import stripe_save, stripe_delete
@@ -20,7 +20,7 @@ def delete_meta(sender, instance, **kwargs):
     })
 
 
-for model in StripeObject.__subclasses__():
+for model in PersistedModel.__subclasses__():
     if isinstance(model, exclude_models):
         continue
     stripe_save.connect(update_meta, model, dispatch_uid="rayures-meta")

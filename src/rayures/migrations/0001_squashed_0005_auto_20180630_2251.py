@@ -54,7 +54,6 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.CharField(editable=False, max_length=255, primary_key=True, serialize=False)),
                 ('data', django.contrib.postgres.fields.jsonb.JSONField(default=dict)),
-                ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to='contenttypes.ContentType')),
                 ('object_id', models.CharField(default=None, max_length=50, null=True)),
                 ('deleted_at', models.DateTimeField(editable=False, null=True)),
                 ('content_type', models.ForeignKey(default=None, null=True, on_delete=django.db.models.deletion.SET_DEFAULT, to='contenttypes.ContentType')),

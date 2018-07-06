@@ -4,6 +4,7 @@ from django.db.models.expressions import Col
 from django.db.models.lookups import IExact
 from django.db.models.fields.related_lookups import RelatedLookupMixin
 from django.db.models.signals import post_init
+from django.contrib.postgres.fields import JSONField as JSONFieldBase
 
 __all__ = ['IntegerField']
 
@@ -102,6 +103,23 @@ class BooleanProxy:
             return bool(value)
 
 
+class HashProxy:
+    def __init__(self, source, field_name):
+        self.source = source
+        self.path = source.split('.')
+        self.field_name = field_name
+
+    def __get__(self, obj, type=None):
+        if obj is None:
+            return obj
+        value = obj.data
+        for p in self.path:
+            value = value.get(p, MISSING)
+            if value is MISSING:
+                return
+        return value
+
+
 class StripeCol(Col):
     def as_sql(self, compiler, connection):
         qn = compiler.quote_name_unless_alias
@@ -115,6 +133,9 @@ class StripeCol(Col):
             field = f'({field})::text::numeric'
         elif isinstance(self.target, BooleanField):
             field = f'({field})::text::bool'
+        elif isinstance(self.target, HashField):
+            field = '->'.join(prev) + '->' + last
+            field = "%s.%s" % (qn(self.alias), field)
         else:
             field = f'({field})::text'
         return field, []
@@ -183,10 +204,10 @@ class StripeField(models.Field):
     #     # get_lookup rayures.Coupon.created_at <class 'django.db.models.lookups.LessThan'> lt
     #     return result
 
-    # def get_transform(self, name):
-    #     result = super().get_transform(name)
-    #     print('get_transform', self, result, name)
-    #     return result
+    def get_transform(self, name):
+        result = super().get_transform(name)
+        print('get_transform', self, result, name)
+        return result
 
 
 class IntegerField(StripeField, models.IntegerField):
@@ -232,6 +253,14 @@ class BooleanField(StripeField, models.NullBooleanField):
 
     def get_internal_type(self):
         return 'NullBooleanField'
+
+
+class HashField(StripeField, JSONFieldBase):
+    # description = _("String (up to %(max_length)s)")
+    proxy = HashProxy
+
+    def get_internal_type(self):
+        return 'JSONField'
 
 
 MISSING = object()

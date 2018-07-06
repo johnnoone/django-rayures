@@ -118,4 +118,9 @@ Features
     print(subcalls)
 
 
+TODO
+----
+
+* Allow to define custom types in metadata attributes
+
 .. _Stripe: https://stripe.com
