@@ -1,7 +1,7 @@
 import logging
 from .exceptions import DispatchException
 from .instrumentation import instrument_client
-from .models import Event, RayureEventProcess
+from .models import RayureEventProcess
 from .prio import PrioritySet
 from .reconciliation import reconciliate_by_event
 from django.utils import timezone

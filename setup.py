@@ -15,6 +15,9 @@ setup(
     install_requires=[
         "stripe>=1.82.1"
     ],
+    extras_require={
+        'factories':  ["factory_boy>=2.11.1"],
+    },
     license='MIT',
     classifiers=[
         "Development Status :: 4 - Beta",

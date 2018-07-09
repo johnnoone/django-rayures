@@ -118,6 +118,18 @@ Features
     print(subcalls)
 
 
+* factory boy.
+
+If you are a factory boy user, you can install our bindings::
+
+    pip install rayures[factories]
+
+And then start to use them in your tests::
+
+    from rayures.factories import CustomerFactory
+    customer = CustomerFactory()
+
+
 TODO
 ----
 

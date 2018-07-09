@@ -1,47 +1,19 @@
 import json
 import logging
 import stripe
-from .exceptions import DispatchException, InvalidInputsError
 from .events import dispatch
+from .exceptions import DispatchException
 from .models import Customer, RayureEventProcess
 from .reconciliation import reconciliate_event
-from contextlib import suppress
+from datetime import timedelta
 from django.apps import apps
+from django.db.models import Q
+from django.db.models.functions import Now
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.db.models.functions import Now
-from django.db.models import Q
-from datetime import timedelta
 
 
 logger = logging.getLogger('rayures')
-
-
-@require_http_methods(["GET"])
-def stripe_config(request):
-    """Serve configuration
-    """
-    return JsonResponse({
-        'publishable_key': apps.app_configs['rayures'].publishable_key
-    })
-
-
-def stripe_ephemeral_key(request):
-    """Returns ephemeral key
-    """
-    if request.method != 'POST':
-        raise
-    customer = get_customer(request)
-    api_version = request.data.get('api_version', stripe.api_version)
-    try:
-        data = stripe.EphemeralKey.create(customer=customer.id,
-                                          api_version=api_version)
-    except stripe.error.InvalidRequestError as error:
-        with suppress(KeyError):
-            if error.json_body['error']['type'] == 'invalid_request_error':
-                raise InvalidInputsError('Invalid request', errors={'api_version': ['unknown']}) from error
-        raise  # pragma: no cover
-    return JsonResponse({'key': data})
 
 
 @require_http_methods(["POST"])
@@ -65,6 +37,8 @@ def stripe_web_hook(request):
         logger.error('stripe_web_hook SignatureVerificationError - error: %s' % error)
         return HttpResponse(status=400)
     data = handle_dispatch(state)
+    if isinstance(data, HttpResponse):
+        return data
     return JsonResponse(data, status=200)
 
 
@@ -91,11 +65,10 @@ def load_stripe_event(request) -> stripe.StripeObject:
             logger.error('stripe_web_hook SignatureVerificationError - error: %s' % error)
             return HttpResponse(status=400)
     else:
-        return json.loads(payload)
+        return json.loads(request.body)
 
 
 def handle_dispatch(state):
-    print('state is', state)
     if state['type'] == 'ping':
         return HttpResponse()
     # do we have a running process for this event?
@@ -125,4 +98,4 @@ def handle_dispatch(state):
 
 def get_customer(request) -> Customer:
     # use custom loader configured
-    return apps.app_configs['rayures'].customer_loader(request)
+    return apps.app_configs['rayures'].customer_loader.find(request)

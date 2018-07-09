@@ -14,10 +14,3 @@ class DispatchException(Exception):
             'func': str(pe.func),
             'message': str(pe.message)
         } for pe, _ in self.proc_errors]
-
-
-class InvalidInputsError(Exception):
-    def __init__(self, message, errors):
-        self.message = message
-        self.errors = errors
-        super().__init__(message)
