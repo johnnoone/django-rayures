@@ -2,18 +2,22 @@ import factory
 from . import models
 
 
-class CustomerFactory(factory.Factory):
+class CustomerFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Customer
 
     id = factory.Faker('md5', raw_output=False)
+    delinquent = False
     data = factory.Dict({
         "object": "customer",
-        "id": factory.SelfAttribute('..id')
+        "id": factory.SelfAttribute('..id'),
+        'account_balance': 0,
+        'currency': 'usd',
+        'delinquent': factory.SelfAttribute('..delinquent'),
     })
 
 
-class SubscriptionFactory(factory.Factory):
+class SubscriptionFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Subscription
 
@@ -44,7 +48,7 @@ class SubscriptionFactory(factory.Factory):
     })
 
 
-class PlanFactory(factory.Factory):
+class PlanFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Plan
 
