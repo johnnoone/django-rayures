@@ -18,11 +18,14 @@ class DatetimeProxy:
     def __get__(self, obj, type=None):
         if obj is None:
             return obj
-        value = obj.data
-        for p in self.path:
-            value = value.get(p, MISSING)
-            if value is MISSING:
-                return
+        try:
+            value = obj.data
+            for p in self.path:
+                value = value.get(p, MISSING)
+                if value is MISSING:
+                    return
+        except AttributeError:
+            return
         if value is not None:
             return dt_from_stripe(value)
 
@@ -36,11 +39,14 @@ class CharProxy:
     def __get__(self, obj, type=None):
         if obj is None:
             return obj
-        value = obj.data
-        for p in self.path:
-            value = value.get(p, MISSING)
-            if value is MISSING:
-                return
+        try:
+            value = obj.data
+            for p in self.path:
+                value = value.get(p, MISSING)
+                if value is MISSING:
+                    return
+        except AttributeError:
+            return
         if value is not None:
             return str(value)
 
@@ -54,11 +60,14 @@ class IntegerProxy:
     def __get__(self, obj, type=None):
         if obj is None:
             return obj
-        value = obj.data
-        for p in self.path:
-            value = value.get(p, MISSING)
-            if value is MISSING:
-                return
+        try:
+            value = obj.data
+            for p in self.path:
+                value = value.get(p, MISSING)
+                if value is MISSING:
+                    return
+        except AttributeError:
+            return
         if value is not None:
             return int(value)
 
@@ -72,17 +81,20 @@ class PriceProxy:
     def __get__(self, obj, type=None):
         if obj is None:
             return obj
-        value = obj.data
-        currency = value.get('currency', MISSING)
-        for p in self.path:
+        try:
+            value = obj.data
             currency = value.get('currency', MISSING)
-            value = value.get(p, MISSING)
-            if value is MISSING:
-                return
+            for p in self.path:
+                value = value.get(p, MISSING)
+                currency = value.get('currency', MISSING)
+                if value is MISSING:
+                    return
+        except AttributeError:
+            return
+
         if value is not None:
             # TODO: convert the value to local
-            pass
-        return price_from_stripe(value, currency)
+            return price_from_stripe(value, currency)
 
 
 class BooleanProxy:
@@ -94,11 +106,14 @@ class BooleanProxy:
     def __get__(self, obj, type=None):
         if obj is None:
             return obj
-        value = obj.data
-        for p in self.path:
-            value = value.get(p, MISSING)
-            if value is MISSING:
-                return
+        try:
+            value = obj.data
+            for p in self.path:
+                value = value.get(p, MISSING)
+                if value is MISSING:
+                    return
+        except AttributeError:
+            return
         if value is not None:
             return bool(value)
 
@@ -112,11 +127,14 @@ class HashProxy:
     def __get__(self, obj, type=None):
         if obj is None:
             return obj
-        value = obj.data
-        for p in self.path:
-            value = value.get(p, MISSING)
-            if value is MISSING:
-                return
+        try:
+            value = obj.data
+            for p in self.path:
+                value = value.get(p, MISSING)
+                if value is MISSING:
+                    return
+        except AttributeError:
+            return
         return value
 
 
