@@ -11,11 +11,13 @@ from django.db.models import Q
 from django.db.models.functions import Now
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 
 
 logger = logging.getLogger('rayures')
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def stripe_web_hook(request):
     """Handle stripe webhooks
