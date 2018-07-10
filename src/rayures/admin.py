@@ -1,13 +1,17 @@
 import json
+import logging
 from .models import (Account, Card, Charge, Coupon, Customer, Event, Invoice,
                      InvoiceItem, Order, Plan, Product, SKU, Source, Subscription,
                      Transfer, Refund, BankAccount, Payout, Application, IssuerFraudRecord,
-                     RayuresMeta, Dispute, RayureEventProcess, RayureEventProcessingError)
+                     RayuresMeta, Dispute, RayureEventProcess, RayureEventProcessingError,
+                     BalanceTransaction)
 from django.contrib import admin
 from django.contrib.postgres.fields import JSONField
 from django.forms import widgets
 from django.utils.html import format_html
 from django.urls import reverse
+
+logger = logging.getLogger('rayures')
 
 
 class PrettyJsonWidget(widgets.Textarea):
@@ -103,6 +107,13 @@ class RayureEventProcessingErrorAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(BalanceTransaction)
+class BalanceTransactionAdmin(ModelAdmin):
+    list_display = 'id', 'amount', 'available_on', 'created_at', 'source', 'status', 'type',
+    search_field = '=id', 'available_on', 'created_at', 'status', 'type',
+    list_filter = 'status', 'type', 'source', 'available_on', 'created_at',
 
 
 @admin.register(Dispute)
@@ -280,8 +291,12 @@ class EventAdmin(ModelAdmin):
 
     def show_obj_url(self, obj):
         if obj.object_id is not None:
-            app_label, model = obj.content_type.app_label, obj.content_type.model
-            url = f'{reverse(f"admin:{app_label}_{model}_changelist")}?q={obj.object_id}'
-            return format_html(f'<a href="{url}">show object</a>')
+            try:
+                app_label, model = obj.content_type.app_label, obj.content_type.model
+                url = f'{reverse(f"admin:{app_label}_{model}_changelist")}?q={obj.object_id}'
+                return format_html(f'<a href="{url}">show object</a>')
+            except Exception as error:
+                logger.warn(f'{app_label}.{model} has no admin entry')
+                return '-'
     show_obj_url.allow_tags = True
     show_obj_url.short_description = 'Object'
