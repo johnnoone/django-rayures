@@ -204,10 +204,10 @@ class StripeField(models.Field):
     #     # get_lookup rayures.Coupon.created_at <class 'django.db.models.lookups.LessThan'> lt
     #     return result
 
-    def get_transform(self, name):
-        result = super().get_transform(name)
-        print('get_transform', self, result, name)
-        return result
+    # def get_transform(self, name):
+    #     result = super().get_transform(name)
+    #     print('get_transform', self, result, name)
+    #     return result
 
 
 class IntegerField(StripeField, models.IntegerField):

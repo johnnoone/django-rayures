@@ -3,7 +3,7 @@ import logging
 import stripe
 from .events import dispatch
 from .exceptions import DispatchException
-from .models import Customer, RayureEventProcess
+from .models import RayureEventProcess
 from .reconciliation import reconciliate_event
 from datetime import timedelta
 from django.apps import apps
@@ -44,18 +44,15 @@ def stripe_web_hook(request):
 
 def load_stripe_event(request) -> stripe.StripeObject:
     endpoint_secret = apps.app_configs['rayures'].endpoint_secret
-    print('endpoint_secret', endpoint_secret)
+    payload = request.body
     if endpoint_secret:
         # verify signature
         sig_header = request.META.get('HTTP_STRIPE_SIGNATURE', None)
-        print('sig_header', sig_header)
         if not sig_header:
             return HttpResponse(status=400)
         try:
-            payload = request.body
-            print('req', payload)
             return stripe.Webhook.construct_event(
-                request.body, sig_header, endpoint_secret)
+                payload, sig_header, endpoint_secret)
         except ValueError as error:
             # Invalid payload
             logger.error('stripe_web_hook ValueError - error: %s' % error)
@@ -65,7 +62,7 @@ def load_stripe_event(request) -> stripe.StripeObject:
             logger.error('stripe_web_hook SignatureVerificationError - error: %s' % error)
             return HttpResponse(status=400)
     else:
-        return json.loads(request.body)
+        return json.loads(payload)
 
 
 def handle_dispatch(state):
@@ -94,8 +91,3 @@ def handle_dispatch(state):
         data = {}
     data.update({'id': process.id, 'status': process.status, 'traces': process.traces})
     return data
-
-
-def get_customer(request) -> Customer:
-    # use custom loader configured
-    return apps.app_configs['rayures'].customer_loader.find(request)

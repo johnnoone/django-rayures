@@ -40,8 +40,7 @@ def pytest_configure():
         SECRET_KEY="notasecret",
         STRIPE_API_KEY=os.getenv("STRIPE_SECRET_KEY", "DUMMY"),
         STRIPE_PUBLISHABLE_KEY=os.getenv("STRIPE_PUBLISHABLE_KEY", "DUMMY_PUBLISHABLE"),
-        STRIPE_ENDPOINT_SECRET=os.getenv("STRIPE_ENDPOINT_SECRET", "DUMMY"),
-        STRIPE_CUSTOMER_FINDER="rayures.integration.BaseCustomerFinder"
+        STRIPE_ENDPOINT_SECRET=os.getenv("STRIPE_ENDPOINT_SECRET", "DUMMY")
     )
     settings.configure(**DEFAULT_SETTINGS)
     django.setup()

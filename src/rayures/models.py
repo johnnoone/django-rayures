@@ -8,7 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.db.models.base import ModelBase
-from django.utils import timezone
+from django.db.models.functions import Coalesce, Now
 
 logger = logging.getLogger('rayures')
 PERSISTED_MODELS = {}
@@ -33,8 +33,10 @@ def state_factory(instance):
 
 
 class SoftDeletionQuerySet(models.QuerySet):
+    # TODO: add an attribute "persisted: True everytime a row is instantiated"
+
     def delete(self):
-        return super().update(deleted_at=timezone.now())
+        return super().update(deleted_at=Coalesce(models.F('deleted_at'), Now()))
 
     def hard_delete(self):
         return super().delete()
@@ -75,13 +77,21 @@ class PersistedModel(models.Model, metaclass=PersistedMeta):
     deleted_at = models.DateTimeField(editable=False, null=True)
     objects = SoftDeletionQuerySet.as_manager()
 
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        # Append persisted and deleted hints
+        instance = super().from_db(db, field_names, values)
+        instance.persisted = True
+        instance.deleted = False
+        return instance
+
     @property
     def events(self):
         # got events without the mess of GenericRelation('rayures.Event')
         return Event.objects.filter(object_id=self.id)
 
     def delete(self):
-        self.deleted_at = timezone.now()
+        self.deleted_at = self.deleted_at or Now()
         self.save(update_fields=['deleted_at'])
 
     def hard_delete(self):
@@ -442,6 +452,41 @@ class Source(PersistedModel, object='source'):
     status = fields.CharField(source='status')
     livemode = fields.BooleanField(source='livemode')
     metadata = fields.HashField(source='metadata')
+
+    @property
+    def card(self):
+        card = getattr(self.data, 'card', None)
+        if card:
+            return SourceCard(card)
+
+
+class SourceCard:
+    def __init__(self, data):
+        self.data = data
+
+    @property
+    def brand(self):
+        return self.data['brand']
+
+    @property
+    def last4(self):
+        return self.data['last4']
+
+    @property
+    def exp_year(self):
+        return self.data['exp_year']
+
+    @property
+    def exp_month(self):
+        return self.data['exp_month']
+
+    @property
+    def fingerprint(self):
+        return self.data['fingerprint']
+
+    @property
+    def cvc_check(self):
+        return self.data['cvc_check']
 
 
 class Transfer(PersistedModel, object='transfer'):

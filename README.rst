@@ -3,12 +3,12 @@ Django rayures
 ==============
 
 Rayure is a Django app that integrates Stripe_.
-It plugs stripe objects into models via webhooks,
-and let you make your custom listener.
+It allows to consolidate stripe objects into models via webhooks and other helpers,
+and let you plug your custom listeners.
 
 It also gives some utilitary classes.
 
-Works only with python >= 3.6 and postgresql >= 9.4.
+It works on python >= 3.6 and postgresql >= 9.4.
 
 
 Quick start
@@ -22,25 +22,10 @@ Quick start
     STRIPE_ENDPOINT_SECRET = "YOUR ENDPOINT SECRET"
     STRIPE_PUBLISHABLE_KEY = "YOUR PUBLISHABLE KEY"
 
-    STRIPE_CUSTOMER_FINDER = "your.project.CustomerFinder"
     INSTALLED_APPS += ['rayures']
 
 
-2. Implement your customer finder::
-
-    # your/project.py
-    from rayures.integration import BaseCustomerFinder
-
-    class CustomerFinder(BaseCustomerFinder):
-        def find(self, request):
-            if request.user.is_authenticated:
-                return request.user.customer
-
-    # project_dir/settings.py
-    STRIPE_CUSTOMER_FINDER = "your.project.CustomerFinder"
-
-
-3. Add custom routes::
+2. Add rayures routes::
 
     # project_dir/urls.py
 
@@ -52,26 +37,9 @@ Quick start
     ]
 
 
-4. In stripe.com dashboard, add the new webhook url::
+3. In stripe.com dashboard, add the new webhook url::
 
     http://YOURPROJECT_URL/YOUR_PREFIX/web-hook
-
-
-
-Ephemeral keys
---------------
-
-Publishable key is exposed at http://YOURPROJECT_URL/YOUR_PREFIX/config::
-
-    {
-      "publishable_key": "YOUR PUBLISHABLE KEY"
-    }
-
-Then configure your client to hit http://YOURPROJECT_URL/YOUR_PREFIX/ephemeral-key::
-
-    {
-      "key": "GENERATED EPHEMERAL KEY"
-    }
 
 
 Event listeners
@@ -99,16 +67,20 @@ Features
 
     {"success": true, "traces": {"callees": [], "subcalls": []}}
 
-* denormalisation of stripe object into django models
+* consolidation of stripe object into django models
 * django admin let explore stripe objects
 * some django models integration (refresh_from_state...)
 * logging (rayures.*)
 * priorities on events (100 by default)
-* soft deletion::
+* soft deletion of models:
 
-    Customer.objects.alive()  # current alive customers
-    Customer.objects.dead()  # deleted customers
-    Customer.objects.all()  # every customers
+    `instance.delete()` is disable. It will populate instead a deleted_at attribute.
+    Then in your queryset, you will have to call `queryset.alive()` to retrieve alive
+    only instances.
+
+    `queryset.alive()`
+    `queryset.dead()`
+    `queryset.hard_delete()`
 
 * instrumentation of calls::
 
@@ -118,16 +90,18 @@ Features
     print(subcalls)
 
 
-* factory boy.
+* integrates well with factory boy.
 
-If you are a factory boy user, you can install our bindings::
+    If you are a factory boy user, you can install our bindings::
 
-    pip install rayures[factories]
+        pip install rayures[factories]
 
-And then start to use them in your tests::
+    And then start to use them in your tests::
 
-    from rayures.factories import CustomerFactory
-    customer = CustomerFactory()
+        from rayures.factories import CustomerFactory
+        customer = CustomerFactory()
+
+* `instance.persisted` and `instance.deleted` db hints
 
 
 TODO

@@ -120,7 +120,6 @@ def squeeze_state(state, *,
 
 def squeeze_event(event) -> dict:
     opts = {"source": "webhook", "event_id": event.id}
-    print('zzz', event.api_version)
     if isinstance(event, stripe.Event):
         opts.update({
             "now": event["created"],  # FIXME: make it datetime,

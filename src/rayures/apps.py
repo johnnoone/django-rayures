@@ -9,7 +9,7 @@ class RayuresConfig(AppConfig):
     def ready(self):
         from rayures import __version__
         import stripe
-        for key in ("STRIPE_API_KEY", "STRIPE_ENDPOINT_SECRET", "STRIPE_PUBLISHABLE_KEY", "STRIPE_CUSTOMER_FINDER"):
+        for key in ("STRIPE_API_KEY", "STRIPE_ENDPOINT_SECRET", "STRIPE_PUBLISHABLE_KEY"):
             if not hasattr(settings, key):
                 raise ImproperlyConfigured(f"{key} is mandatory")
 
@@ -19,17 +19,12 @@ class RayuresConfig(AppConfig):
         stripe.set_app_info("django-rayures", version=__version__, url="https://lab.errorist.xyz/django/rayures")
 
         # client configurations
-        self.endpoint_secret = settings.STRIPE_ENDPOINT_SECRET
-        self.publishable_key = settings.STRIPE_PUBLISHABLE_KEY
-
-        # load user finder
-        from django.utils.module_loading import import_string
-        cls = import_string(settings.STRIPE_CUSTOMER_FINDER)
-        self.customer_loader = cls()
+        self.endpoint_secret = getattr(settings, "STRIPE_ENDPOINT_SECRET", None)
+        self.publishable_key = getattr(settings, "STRIPE_PUBLISHABLE_KEY", None)
 
         # Activate signals
         from . import tasks  # noqa
 
-        # load webhook events
+        # load webhook events from any project
         from django.utils.module_loading import autodiscover_modules
         autodiscover_modules('stripe_webhooks')
