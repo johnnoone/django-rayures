@@ -759,9 +759,11 @@ class RayureEventProcessingError(models.Model):
     acknowledged_at = models.DateTimeField(null=True)
 
 
-class RayuresMeta(models.Model):
+class RayureMeta(models.Model):
     id = models.CharField(max_length=255, primary_key=True)
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    content_type = models.ForeignKey(ContentType,
+                                     on_delete=models.CASCADE,
+                                     limit_choices_to=models.Q(app_label='rayures'))
     content_object = GenericForeignKey('content_type', 'id')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

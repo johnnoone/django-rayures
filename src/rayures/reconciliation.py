@@ -292,7 +292,7 @@ def handle_meta(instance, *, created, deleted, event_id, request_id, idempotency
         defaults['deleted_at'] = Now()
     else:
         defaults['updated_at'] = Now()
-    meta, created = models.RayuresMeta.objects.update_or_create(id=instance.id,
-                                                                content_type=content_type,
-                                                                defaults=defaults)
+    meta, created = models.RayureMeta.objects.update_or_create(id=instance.id,
+                                                               content_type=content_type,
+                                                               defaults=defaults)
     return meta

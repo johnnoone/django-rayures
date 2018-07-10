@@ -3,7 +3,7 @@ import logging
 from .models import (Account, Card, Charge, Coupon, Customer, Event, Invoice,
                      InvoiceItem, Order, Plan, Product, SKU, Source, Subscription,
                      Transfer, Refund, BankAccount, Payout, Application, IssuerFraudRecord,
-                     RayuresMeta, Dispute, RayureEventProcess, RayureEventProcessingError,
+                     RayureMeta, Dispute, RayureEventProcess, RayureEventProcessingError,
                      BalanceTransaction)
 from django.contrib import admin
 from django.contrib.postgres.fields import JSONField
@@ -63,8 +63,8 @@ class ModelAdmin(admin.ModelAdmin):
     show_events_url.short_description = 'Events'
 
 
-@admin.register(RayuresMeta)
-class RayuresMetaAdmin(admin.ModelAdmin):
+@admin.register(RayureMeta)
+class RayureMetaAdmin(admin.ModelAdmin):
     list_display = 'id', 'content_type', 'created_at', 'updated_at', 'deleted_at', 'show_obj_url', 'source'
     search_field = '=id', 'created_at', 'updated_at', 'deleted_at', '=event_id', '=request_id'
     readonly_fields = ('id', 'content_type', 'created_at', 'updated_at',
