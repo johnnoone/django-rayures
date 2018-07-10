@@ -119,15 +119,23 @@ def squeeze_state(state, *,
 
 
 def squeeze_event(event) -> dict:
-    opts = {"source": "webhook", "event_id": event.id}
+    opts = {"source": "webhook"}
+    if isinstance(event, dict):
+        opts.update({
+            "event_id": event.get("id", None)
+        })
     if isinstance(event, stripe.Event):
         opts.update({
             "now": event["created"],  # FIXME: make it datetime,
             "api_version": event["api_version"],
-            "request_id": event["request"]["id"],
-            "idempotency_key": event["request"]["idempotency_key"],
-            "state": event["data"]["object"]
+            "state": event["data"]["object"],
+            "event_id": event.id
         })
+        if event["request"] is not None:
+            opts.update({
+                "request_id": event["request"]["id"],
+                "idempotency_key": event["request"]["idempotency_key"],
+            })
         event_type = event["type"]
     elif isinstance(event, models.Event):
         opts.update({
@@ -135,7 +143,8 @@ def squeeze_event(event) -> dict:
             "api_version": event.api_version,
             "request_id": event.request_id,
             "idempotency_key": event.idempotency_key,
-            "state": event.data["data"]["object"]
+            "state": event.data["data"]["object"],
+            "event_id": event.id
         })
         event_type = event.type
     else:
@@ -146,7 +155,7 @@ def squeeze_event(event) -> dict:
     return opts
 
 
-Reconciliation = namedtuple('Reconsiliation', 'instance, persisted')
+Reconciliation = namedtuple('Reconciliation', 'instance, persisted')
 
 
 def reconciliate_by_event(event, *, persist=None) -> Reconciliation:
@@ -157,9 +166,9 @@ def reconciliate_by_event(event, *, persist=None) -> Reconciliation:
     rec = reconciliate(**opts)
 
     # TODO: link non persisted obj, like Discount and invoice.upcoming, customer.discount.created
-    obj = rec.index
+    obj = rec.instance
     cls = type(obj)
-    if rec.persisted and cls in models.StripeObject.__subclasses__():
+    if rec.persisted and cls in models.PersistedModel.__subclasses__():
         event.content_type = ContentType.objects.get_for_model(cls)
         event.object_id = obj.id
         event.save(update_fields=['content_type', 'object_id'])
