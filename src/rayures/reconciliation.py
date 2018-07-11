@@ -9,56 +9,6 @@ from django.utils import timezone
 from email.utils import parsedate_to_datetime
 
 
-State = namedtuple('State', 'object, id, data, version, request_id, idempotency_key, account, event_datetime')
-
-
-def grab_state(state) -> State:
-    """request_id & idempotency_key, like given by event data body
-    """
-    last_response = None
-    stripe_id = None
-    stripe_version = None
-    stripe_object = None
-    stripe_account = None
-    request_id = None
-    idempotency_key = None
-    data = None
-    event_datetime = None
-
-    if isinstance(state, stripe.stripe_object.StripeObject):
-        # Bingo! the best alt, we got it from a stripe.[Customer].retrieve() like
-        stripe_account = state.stripe_account
-        stripe_object = type(state).class_name
-        stripe_id = state.stripe_id
-        stripe_version = state.stripe_version
-        last_response = state.last_response
-        data = last_response.data
-    elif isinstance(state, stripe.stripe_response.StripeResponse):
-        last_response, data = state, state.data
-    else:
-        data = state
-
-    stripe_object = data.get('object', stripe_object)  # no object smells bad
-    stripe_id = data.get('id', stripe_id)  # no id can be invoice.upcoming
-
-    if last_response:
-        request_id = last_response.request_id
-        idempotency_key = last_response.idempotency_key
-        stripe_version = stripe_version or last_response.headers.get('Stripe-Version', None)
-        request_id = request_id or last_response.headers.get('Request-Id', None)
-        dt = last_response.headers.get('Date', None)
-        if dt:
-            event_datetime = parsedate_to_datetime(dt)
-    return State(stripe_object,
-                 stripe_id,
-                 data,
-                 stripe_version,
-                 request_id,
-                 idempotency_key,
-                 stripe_account,
-                 event_datetime)
-
-
 def squeeze_state(state, *,
                   created=None,
                   deleted=None,
@@ -86,7 +36,7 @@ def squeeze_state(state, *,
         last_response = state.last_response
         opts.update({
             'account': state.stripe_account,
-            'object': type(state).class_name,
+            'object': getattr(type(state), "class_name", None),
             'id': state.get('id', None)
         })
         if state.stripe_version:
