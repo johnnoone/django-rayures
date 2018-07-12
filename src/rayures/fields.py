@@ -76,6 +76,7 @@ class PriceProxy:
     def __init__(self, source, field_name):
         self.source = source
         self.path = source.split('.')
+        self.currency_path = self.path[:-1] + ['currency']
         self.field_name = field_name
 
     def __get__(self, obj, type=None):
@@ -83,11 +84,14 @@ class PriceProxy:
             return obj
         try:
             value = obj.data
-            currency = value.get('currency', MISSING)
             for p in self.path:
                 value = value.get(p, MISSING)
-                currency = value.get('currency', MISSING)
                 if value is MISSING:
+                    return
+            currency = obj.data
+            for p in self.currency_path:
+                currency = currency.get(p, MISSING)
+                if currency is MISSING:
                     return
         except AttributeError:
             return

@@ -128,6 +128,7 @@ class PersistedModel(models.Model, metaclass=PersistedMeta):
         assert self.data['object'] == state['object']
         self.data = state
         self.save(update_fields=['data'])
+        self.rebound_fields()
 
     def refresh_related_objects(self, *names, persist=False):
         """Refresh related objects
