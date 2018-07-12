@@ -14,6 +14,24 @@ from django.urls import reverse
 logger = logging.getLogger('rayures')
 
 
+class HasCustomerFilter(admin.SimpleListFilter):
+    title = 'customer'
+    parameter_name = 'has_customer'
+
+    def lookups(self, request, model_admin):
+        return [
+            ('yes', 'Has customer'),
+            ('no', 'No customer')
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.filter(customer__isnull=False)
+        if self.value() == 'no':
+            return queryset.filter(customer__isnull=True)
+        return queryset
+
+
 class PrettyJsonWidget(widgets.Textarea):
     def __init__(self, attrs=None):
         attrs = attrs or {}
@@ -225,9 +243,9 @@ class CardAdmin(ModelAdmin):
 
 @admin.register(Source)
 class SourceAdmin(ModelAdmin):
-    list_display = 'id', 'amount', 'created_at', 'type', 'usage', 'status'
-    list_filter = 'status', 'type', 'created_at'
-    search_fields = '=id',
+    list_display = 'id', 'amount', 'created_at', 'type', 'usage', 'status', 'customer_id',
+    list_filter = 'status', 'type', 'created_at', HasCustomerFilter,
+    search_fields = '=id', '=customer_id',
 
 
 @admin.register(Transfer)
@@ -250,10 +268,18 @@ class ChargeAdmin(ModelAdmin):
 
 @admin.register(Customer)
 class CustomerAdmin(ModelAdmin):
-    list_display = 'id', 'email', 'delinquent', 'invoice_prefix', 'created_at', 'account_balance'
+    list_display = ('id', 'email', 'delinquent', 'invoice_prefix', 'created_at',
+                    'account_balance', 'default_source_display',)
     list_filter = 'created_at', 'delinquent', 'deleted_at',
     search_fields = '=id', '=email'
     readonly_fields = 'default_source',
+
+    def default_source_display(self, obj):
+        src = obj.default_source
+        if src:
+            return src.id
+    default_source_display.allow_tags = True
+    default_source_display.short_description = 'Default source'
 
 
 @admin.register(Subscription)

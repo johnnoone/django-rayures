@@ -181,7 +181,7 @@ def handle_persistable_model(data, object, id, persist, api_version, now, delete
         return Reconciliation(instance, True)
     else:
         qs = cls.objects
-        instance = load_instance(id, defaults, cls, qs, created, deleted, now)
+        instance, newborn = load_instance(id, defaults, cls, qs, created, deleted, now)
         # TODO: do we care about meta?
         return Reconciliation(instance, False)
 

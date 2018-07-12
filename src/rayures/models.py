@@ -304,7 +304,7 @@ class Card(PersistedModel, object='card'):
     brand = fields.CharField(source='brand')
     last4 = fields.CharField(source='last4')
     # customer_id = fields.CharField(source='customer')
-    customer = fields.ForeignKey('rayures.Customer', related_name='cards', source='customer')
+    customer = fields.ForeignKey('rayures.Customer', related_name='+', source='customer')
     exp_year = fields.IntegerField(source='exp_year')
     exp_month = fields.IntegerField(source='exp_month')
     fingerprint = fields.CharField(source='fingerprint')
@@ -452,6 +452,7 @@ class Source(PersistedModel, object='source'):
     status = fields.CharField(source='status')
     livemode = fields.BooleanField(source='livemode')
     metadata = fields.HashField(source='metadata')
+    customer = fields.ForeignKey('rayures.Customer', related_name='+', source='customer')
 
     @property
     def card(self):
@@ -508,12 +509,55 @@ class Customer(PersistedModel, object='customer'):
     created_at = fields.DateTimeField(source='created')
     account_balance = fields.PriceField(source='account_balance')
     # default_source_id = fields.PriceField(source='default_source')
-    default_source = fields.ForeignKey('rayures.Source', related_name='+', source='default_source')
+    # default_source = fields.ForeignKey('rayures.Source', related_name='+', source='default_source')
     delinquent = fields.BooleanField(source='delinquent')
     # discount_id = fields.CharField(source='discount')
     # discount = fields.ForeignKey('rayures.Source', related_name='customers', source='discount')
     livemode = fields.BooleanField(source='livemode')
     metadata = fields.HashField(source='metadata')
+
+    @property
+    def default_source(self):
+        """Returns default source.
+
+        Object can be either a Card or a Source.
+        """
+        # TODO: make it a relation field searchable by source/card id
+        if self.data['default_source']:
+            source = self.data['default_source']
+            if isinstance(source, str):
+                for s in self.data['sources']['data']:
+                    # check in local data
+                    if s['id'] == source:
+                        source = s
+                        break
+                    else:
+                        # worst case, must performs a query
+                        obj = Source.objects.filter(id=source).first()
+                        if not obj:
+                            obj = Card.objects.filter(id=source).first()
+                        return obj
+            else:
+                # must be an embedded object
+                assert 'id' in source
+                assert 'object' in source
+            if source:
+                from .reconciliation import reconciliate
+                return reconciliate(source, persist=False, api_version=self.api_version, source="orm").instance
+
+    @property
+    def sources(self):
+        from .reconciliation import reconciliate
+        sources = []
+        for s in self.data['sources']['data']:
+            source = reconciliate(s, persist=False, api_version=self.api_version, source="orm").instance
+            sources.append(source)
+        if self.data['default_source']:
+            ds = self.data['default_source']
+            if isinstance(ds, dict):
+                ds = ds['id']
+                sources = sorted(sources, key=lambda x: 0 if x.id == ds else 1)
+        return sources
 
     @property
     def discount(self):

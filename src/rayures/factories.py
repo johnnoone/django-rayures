@@ -5,15 +5,23 @@ from . import models
 class CustomerFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Customer
+        exclude = 'default_source', 'sources',
 
     id = factory.Faker('md5', raw_output=False)
     delinquent = False
+    default_source = None
+    sources = []
+
     data = factory.Dict({
         "object": "customer",
         "id": factory.SelfAttribute('..id'),
-        'account_balance': 0,
-        'currency': 'usd',
-        'delinquent': factory.SelfAttribute('..delinquent'),
+        "account_balance": 0,
+        "currency": "usd",
+        "delinquent": factory.SelfAttribute('..delinquent'),
+        "default_source": factory.SelfAttribute('..default_source'),
+        "sources": factory.Dict({
+            "data": factory.SelfAttribute('...sources'),
+        })
     })
 
 
@@ -71,4 +79,29 @@ class ProductFactory(factory.Factory):
         "object": "product",
         "id": factory.SelfAttribute('..id'),
         "type": factory.SelfAttribute('..type'),
+    })
+
+
+class CardFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.Card
+
+    id = factory.Faker('md5', raw_output=False)
+    fingerprint = factory.Faker('md5', raw_output=False)
+    customer = factory.SubFactory("rayures.factories.CustomerFactory")
+    data = factory.Dict({
+        "id": factory.SelfAttribute('..id'),
+        "name": None,
+        "brand": "Visa",
+        "last4": "3956",
+        "object": "card",
+        "country": "US",
+        "funding": "credit",
+        "customer": factory.SelfAttribute('..customer.id'),
+        "exp_year": 2018,
+        "metadata": {},
+        "cvc_check": "pass",
+        "exp_month": 10,
+        "fingerprint": factory.SelfAttribute('..fingerprint'),
+        "tokenization_method": None
     })

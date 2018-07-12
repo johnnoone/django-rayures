@@ -1,6 +1,6 @@
 import pytest
 from rayures import models
-from rayures.factories import CustomerFactory
+from rayures import factories
 
 
 @pytest.fixture
@@ -10,7 +10,7 @@ def stripe_id():
 
 @pytest.fixture
 def stripe_object(stripe_id):
-    return CustomerFactory(id=stripe_id)
+    return factories.CustomerFactory(id=stripe_id)
 
 
 @pytest.mark.django_db
