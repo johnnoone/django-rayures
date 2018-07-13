@@ -47,7 +47,7 @@ class SubscriptionFactory(factory.django.DjangoModelFactory):
                     "id": factory.Faker('md5', raw_output=False),
                     "object": "subscription_item",
                     "plan": factory.Dict({
-                        "id": factory.SelfAttribute('....plan.id'),
+                        "id": factory.SelfAttribute('......plan.id'),
                         "object": "plan",
                     })
                 })
