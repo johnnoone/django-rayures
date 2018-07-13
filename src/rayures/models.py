@@ -698,12 +698,12 @@ class Discount(Entity, object="discount"):
     @property
     def customer(self):
         if self['customer']:
-            return Customer.objecst.get(id=self['customer']['id'])
+            return Customer.objects.get(id=self['customer']['id'])
 
     @property
     def subscription(self):
         if self['subscription']:
-            return Subscription.objecst.get(id=self['subscription']['id'])
+            return Subscription.objects.get(id=self['subscription']['id'])
 
 
 class Balance(Entity, object='balance'):
