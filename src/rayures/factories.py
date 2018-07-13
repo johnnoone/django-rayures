@@ -3,6 +3,12 @@ from . import models
 from datetime import datetime, timedelta
 
 
+def timestamp(obj):
+    if obj is None:
+        return
+    return int(obj.timestamp())
+
+
 class CustomerFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Customer
@@ -29,19 +35,39 @@ class CustomerFactory(factory.django.DjangoModelFactory):
 class SubscriptionFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Subscription
-        exclude = 'timestamp_start', 'timestamp_end', 'now',
+        exclude = ('timestamp_current_period_start_at',
+                   'timestamp_current_period_end_at',
+                   'timestamp_start_at',
+                   'now',
+                   'timestamp_trial_start_at',
+                   'timestamp_trial_end_at',
+                   'timestamp_canceled_at',
+                   'timestamp_ended_at')
 
     id = factory.Faker('md5', raw_output=False)
     customer = factory.SubFactory('rayures.factories.CustomerFactory')
     plan = factory.SubFactory('rayures.factories.PlanFactory')
     status = 'active'
+    canceled_at = None
+    ended_at = None
 
     now = factory.LazyFunction(datetime.utcnow)
+
+    start_at = factory.LazyAttribute(lambda o: (o.now - timedelta(days=40)))
     current_period_start_at = factory.LazyAttribute(lambda o: (o.now - timedelta(days=1)))
     current_period_end_at = factory.LazyAttribute(lambda o: (o.now + timedelta(days=29)))
+    trial_start_at = None
+    trial_end_at = None
 
-    timestamp_start = factory.LazyAttribute(lambda o: o.current_period_start_at.timestamp())
-    timestamp_end = factory.LazyAttribute(lambda o: o.current_period_end_at.timestamp())
+    timestamp_start_at = factory.LazyAttribute(lambda o: timestamp(o.start_at))
+    timestamp_canceled_at = factory.LazyAttribute(lambda o: timestamp(o.canceled_at))
+    timestamp_ended_at = factory.LazyAttribute(lambda o: timestamp(o.ended_at))
+    timestamp_current_period_start_at = factory.LazyAttribute(lambda o: timestamp(o.current_period_start_at))
+    timestamp_current_period_end_at = factory.LazyAttribute(lambda o: timestamp(o.current_period_end_at))
+
+    timestamp_trial_start_at = factory.LazyAttribute(lambda o: timestamp(o.trial_start_at))
+    timestamp_trial_end_at = factory.LazyAttribute(lambda o: timestamp(o.trial_end_at))
+    cancel_at_period_end = False
 
     data = factory.Dict({
         "id": factory.SelfAttribute('..id'),
@@ -65,8 +91,14 @@ class SubscriptionFactory(factory.django.DjangoModelFactory):
                 })
             ])
         }),
-        "current_period_start": factory.SelfAttribute('..timestamp_start'),
-        "current_period_end": factory.SelfAttribute('..timestamp_end'),
+        "current_period_start": factory.SelfAttribute('..timestamp_current_period_start_at'),
+        "current_period_end": factory.SelfAttribute('..timestamp_current_period_end_at'),
+        "cancel_at_period_end": factory.SelfAttribute('..cancel_at_period_end'),
+        "start": factory.SelfAttribute('..timestamp_start_at'),
+        "trial_start": factory.SelfAttribute('..timestamp_trial_start_at'),
+        "trial_end": factory.SelfAttribute('..timestamp_trial_end_at'),
+        "canceled_at": factory.SelfAttribute('..timestamp_canceled_at'),
+        "ended_at": factory.SelfAttribute('..timestamp_ended_at'),
     })
 
     class Params:
@@ -80,7 +112,24 @@ class SubscriptionFactory(factory.django.DjangoModelFactory):
             status='unpaid'
         )
         trialing = factory.Trait(
-            status='trialing'
+            status='trialing',
+            start_at=factory.LazyAttribute(lambda o: (o.now - timedelta(days=40))),
+            current_period_start_at=factory.LazyAttribute(lambda o: (o.now - timedelta(days=1))),
+            current_period_end_at=factory.LazyAttribute(lambda o: (o.now - timedelta(days=6))),
+            trial_start_at=factory.LazyAttribute(lambda o: o.current_period_start_at),
+            trial_end_at=factory.LazyAttribute(lambda o: o.current_period_end_at),
+        )
+        canceling = factory.Trait(
+            status='active',
+            cancel_at_period_end=True
+        )
+        canceled = factory.Trait(
+            status='canceled',
+            start_at=factory.LazyAttribute(lambda o: (o.now - timedelta(days=40))),
+            current_period_start_at=factory.LazyAttribute(lambda o: (o.now - timedelta(days=31))),
+            current_period_end_at=factory.LazyAttribute(lambda o: (o.now - timedelta(days=1))),
+            canceled_at=factory.LazyAttribute(lambda o: o.current_period_end_at),
+            ended_at=factory.LazyAttribute(lambda o: o.current_period_end_at)
         )
 
 

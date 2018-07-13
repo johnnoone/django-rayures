@@ -30,11 +30,6 @@ class TestSubscriptionFactory:
         assert instance.id
         assert instance.status == 'active'
 
-    def test_active(self):
-        instance = factories.SubscriptionFactory(active=True)
-        assert instance.id
-        assert instance.status == 'active'
-
     def test_past_due(self):
         instance = factories.SubscriptionFactory(past_due=True)
         assert instance.id
@@ -50,6 +45,16 @@ class TestSubscriptionFactory:
         assert instance.id
         assert instance.status == 'trialing'
 
+    def test_canceling(self):
+        instance = factories.SubscriptionFactory(canceling=True)
+        assert instance.id
+        assert instance.status == 'active'
+        assert instance.cancel_at_period_end is True
+
+    def test_canceled(self):
+        instance = factories.SubscriptionFactory(canceled=True)
+        assert instance.id
+        assert instance.status == 'canceled'
 
 
 @pytest.mark.django_db
