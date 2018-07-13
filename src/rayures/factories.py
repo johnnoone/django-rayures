@@ -32,10 +32,12 @@ class SubscriptionFactory(factory.django.DjangoModelFactory):
     id = factory.Faker('md5', raw_output=False)
     customer = factory.SubFactory('rayures.factories.CustomerFactory')
     plan = factory.SubFactory('rayures.factories.PlanFactory')
+    status = 'active'
     data = factory.Dict({
         "id": factory.SelfAttribute('..id'),
         "object": "subscription",
         "customer": factory.SelfAttribute('..customer.id'),
+        "status": factory.SelfAttribute('..status'),
         "plan": factory.Dict({
             "id": factory.SelfAttribute('...plan.id'),
             "object": "plan",
@@ -54,6 +56,20 @@ class SubscriptionFactory(factory.django.DjangoModelFactory):
             ])
         })
     })
+
+    class Params:
+        active = factory.Trait(
+            status='active'
+        )
+        past_due = factory.Trait(
+            status='past_due'
+        )
+        unpaid = factory.Trait(
+            status='unpaid'
+        )
+        trialing = factory.Trait(
+            status='trialing'
+        )
 
 
 class PlanFactory(factory.django.DjangoModelFactory):

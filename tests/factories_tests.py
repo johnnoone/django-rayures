@@ -25,6 +25,32 @@ class TestSubscriptionFactory:
         assert instance.data["id"] == instance.id
         assert instance.plan.id == instance.data["items"]["data"][0]["plan"]["id"]
 
+    def test_active(self):
+        instance = factories.SubscriptionFactory(active=True)
+        assert instance.id
+        assert instance.status == 'active'
+
+    def test_active(self):
+        instance = factories.SubscriptionFactory(active=True)
+        assert instance.id
+        assert instance.status == 'active'
+
+    def test_past_due(self):
+        instance = factories.SubscriptionFactory(past_due=True)
+        assert instance.id
+        assert instance.status == 'past_due'
+
+    def test_unpaid(self):
+        instance = factories.SubscriptionFactory(unpaid=True)
+        assert instance.id
+        assert instance.status == 'unpaid'
+
+    def test_trialing(self):
+        instance = factories.SubscriptionFactory(trialing=True)
+        assert instance.id
+        assert instance.status == 'trialing'
+
+
 
 @pytest.mark.django_db
 class TestPlanFactory:
