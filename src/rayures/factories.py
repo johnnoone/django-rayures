@@ -105,3 +105,20 @@ class CardFactory(factory.django.DjangoModelFactory):
         "fingerprint": factory.SelfAttribute('..fingerprint'),
         "tokenization_method": None
     })
+
+
+class ChargeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.Charge
+
+    id = factory.Faker('md5', raw_output=False)
+    customer = factory.SubFactory('rayures.factories.CustomerFactory')
+    metadata = factory.LazyFunction(dict)
+    data = factory.Dict({
+        "id": factory.SelfAttribute('..id'),
+        "object": 'charge',
+        "currency": 'usd',
+        "amount": 666,
+        "customer": factory.SelfAttribute('..customer.id'),
+        "metadata": factory.SelfAttribute('..metadata'),
+    })
