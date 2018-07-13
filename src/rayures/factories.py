@@ -1,5 +1,6 @@
 import factory
 from . import models
+from datetime import datetime, timedelta
 
 
 class CustomerFactory(factory.django.DjangoModelFactory):
@@ -28,11 +29,20 @@ class CustomerFactory(factory.django.DjangoModelFactory):
 class SubscriptionFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Subscription
+        exclude = 'timestamp_start', 'timestamp_end', 'now',
 
     id = factory.Faker('md5', raw_output=False)
     customer = factory.SubFactory('rayures.factories.CustomerFactory')
     plan = factory.SubFactory('rayures.factories.PlanFactory')
     status = 'active'
+
+    now = factory.LazyFunction(datetime.utcnow)
+    current_period_start_at = factory.LazyAttribute(lambda o: (o.now - timedelta(days=1)))
+    current_period_end_at = factory.LazyAttribute(lambda o: (o.now + timedelta(days=29)))
+
+    timestamp_start = factory.LazyAttribute(lambda o: o.current_period_start_at.timestamp())
+    timestamp_end = factory.LazyAttribute(lambda o: o.current_period_end_at.timestamp())
+
     data = factory.Dict({
         "id": factory.SelfAttribute('..id'),
         "object": "subscription",
@@ -54,7 +64,9 @@ class SubscriptionFactory(factory.django.DjangoModelFactory):
                     })
                 })
             ])
-        })
+        }),
+        "current_period_start": factory.SelfAttribute('..timestamp_start'),
+        "current_period_end": factory.SelfAttribute('..timestamp_end'),
     })
 
     class Params:
