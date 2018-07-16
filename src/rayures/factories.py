@@ -199,3 +199,54 @@ class ChargeFactory(factory.django.DjangoModelFactory):
         "customer": factory.SelfAttribute('..customer.id'),
         "metadata": factory.SelfAttribute('..metadata'),
     })
+
+
+class InvoiceFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.Invoice
+
+    id = factory.Faker('md5', raw_output=False)
+    customer = factory.SubFactory('rayures.factories.CustomerFactory')
+    subscription = factory.SubFactory('rayures.factories.SubscriptionFactory',
+                                      customer=factory.SelfAttribute('..customer'))
+    metadata = factory.LazyFunction(dict)
+    data = factory.Dict({
+        "id": factory.SelfAttribute('..id'),
+        "object": 'invoice',
+        "customer": factory.SelfAttribute('..customer.id'),
+        "subscription": factory.SelfAttribute('..subscription.id'),
+        "metadata": factory.SelfAttribute('..metadata'),
+        "paid": True,
+        "closed": True
+    })
+
+
+class EventFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.Event
+        exclude = ('now',
+                   'timestamp_created_at',
+                   'embedded_object')
+
+    id = factory.Faker('md5', raw_output=False)
+    type = 'customer.created'
+
+    now = factory.LazyFunction(datetime.utcnow)
+
+    created_at = factory.LazyAttribute(lambda o: (o.now - timedelta(days=40)))
+    timestamp_created_at = factory.LazyAttribute(lambda o: timestamp(o.created_at))
+    # embedded_object = factory.SubFactory('rayures.factories.CustomerFactory')
+    content_object = factory.SubFactory('rayures.factories.CustomerFactory')
+    # object_id = factory.SubFactory('rayures.factories.CustomerFactory')
+
+    data = factory.Dict({
+        "id": factory.SelfAttribute('..id'),
+        "object": 'event',
+        'type': factory.SelfAttribute('..type'),
+        'api_version': '2018-05-21',
+        "created": factory.SelfAttribute('..timestamp_created_at'),
+        "data": factory.Dict({
+            "object": factory.SelfAttribute('...content_object.data'),
+            # "object": factory.SelfAttribute('...embedded_object.data'),
+        }),
+    })

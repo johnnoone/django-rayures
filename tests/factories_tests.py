@@ -87,3 +87,21 @@ class TestProductFactory:
         instance = factories.ProductFactory()
         assert instance.id
         assert instance.data["id"] == instance.id
+
+
+@pytest.mark.django_db
+class TestInvoiceFactory:
+    def test_default(self):
+        instance = factories.InvoiceFactory()
+        assert instance.id
+        assert instance.data["id"] == instance.id
+
+
+@pytest.mark.django_db
+class TestEventFactory:
+    def test_default(self):
+        instance = factories.EventFactory()
+        assert instance.id
+        assert instance.data["id"] == instance.id
+        assert instance.object_id
+        assert instance.content_type
