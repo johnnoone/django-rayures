@@ -1,5 +1,7 @@
 import factory
 from . import models
+from .objs import Price
+from .utils import price_to_stripe
 from datetime import datetime, timedelta
 
 
@@ -136,13 +138,31 @@ class SubscriptionFactory(factory.django.DjangoModelFactory):
 class PlanFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Plan
+        exclude = ('amount_value',
+                   'amount_currency')
 
     id = factory.Faker('md5', raw_output=False)
     product = factory.SubFactory("rayures.factories.ProductFactory", type="service")
+
+    amount = Price(100, 'usd')
+    amount_currency = factory.LazyAttribute(lambda o: o.amount.currency)
+    amount_value = factory.LazyAttribute(lambda o: price_to_stripe(o.amount)[0])
+
+    interval = 'month'
+    interval_count = 1
+
+    active = True
+
     data = factory.Dict({
         "id": factory.SelfAttribute('..id'),
         "object": "plan",
         "product": factory.SelfAttribute('..product.id'),
+        "amount": factory.SelfAttribute('..amount_value'),
+        "currency": factory.SelfAttribute('..amount_currency'),
+        "interval": factory.SelfAttribute('..interval'),
+        "interval_count": factory.SelfAttribute('..interval_count'),
+        "active": factory.SelfAttribute('..active'),
+        "billing_scheme": 'per_unit'
     })
 
 

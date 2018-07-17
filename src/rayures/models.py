@@ -442,6 +442,8 @@ class SKU(PersistedModel, object='sku'):
     updated_at = fields.DateTimeField(source='updated')
     product = fields.ForeignKey('rayures.Product', related_name='skus', source='product')
     livemode = fields.BooleanField(source='livemode')
+    inventory = fields.HashField(source='inventory')
+    attributes = fields.HashField(source='attributes')
     metadata = fields.HashField(source='metadata')
 
 
