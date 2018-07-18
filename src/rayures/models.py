@@ -2,6 +2,7 @@ import logging
 import stripe
 import traceback
 from . import fields
+from .objs import Price  # noqa
 from .utils import price_from_stripe, dt_from_stripe
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType

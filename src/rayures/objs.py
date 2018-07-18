@@ -8,3 +8,6 @@ class Price:
 
     def __eq__(self, other):
         return self.amount == other.amount and self.currency == other.currency
+
+    def __hash__(self):
+        return hash((self.amount, self.currency))

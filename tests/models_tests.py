@@ -15,6 +15,8 @@ def stripe_object(stripe_id):
 
 @pytest.mark.django_db
 class TestDelete:
+    def test_is_hashable(self, stripe_object):
+        hash(stripe_object)
 
     def test_soft_delete(self, stripe_id, stripe_object):
         qs = models.Customer.objects.filter(id=stripe_id)
@@ -49,3 +51,9 @@ class TestDelete:
         stripe_object.delete()
         dt2 = stripe_object.deleted_at
         assert dt1 == dt2
+
+
+class TestPrice:
+    def test_is_hashable(self):
+        price = models.Price(123, 'usd')
+        hash(price)
