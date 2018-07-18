@@ -172,11 +172,43 @@ class ProductFactory(factory.Factory):
 
     id = factory.Faker('md5', raw_output=False)
     type = "service"
+    name = factory.Faker('sentence')
+    caption = None
+    description = None
+
     data = factory.Dict({
         "object": "product",
         "id": factory.SelfAttribute('..id'),
         "type": factory.SelfAttribute('..type'),
+        "active": True,
+        "attributes": [],
+        "caption": factory.SelfAttribute('..caption'),
+        "created": 1521455493,
+        "deactivate_on": [],
+        "description": factory.SelfAttribute('..description'),
+        "images": [],
+        "livemode": True,
+        "metadata": {},
+        "name": factory.SelfAttribute('..name'),
+        "package_dimensions": None,
+        "shippable": False,
+        "updated": 1530793625,
+        "url": None
     })
+
+    class Params:
+        good = factory.Trait(
+            type="good",
+            name=factory.Faker('sentence'),
+            caption=factory.Faker('sentence'),
+            description=factory.Faker('sentence')
+        )
+        service = factory.Trait(
+            type="service",
+            name=factory.Faker('sentence'),
+            caption=None,
+            description=None
+        )
 
 
 class CardFactory(factory.django.DjangoModelFactory):
@@ -269,4 +301,39 @@ class EventFactory(factory.django.DjangoModelFactory):
             "object": factory.SelfAttribute('...content_object.data'),
             # "object": factory.SelfAttribute('...embedded_object.data'),
         }),
+    })
+
+
+class SKUFactory(factory.Factory):
+    class Meta:
+        model = models.SKU
+        exclude = ('price_currency', 'price_value')
+
+    id = factory.Faker('md5', raw_output=False)
+    product = factory.SubFactory("rayures.factories.ProductFactory", type="good")
+
+    price = Price(100, 'usd')
+    price_currency = factory.LazyAttribute(lambda o: o.price.currency)
+    price_value = factory.LazyAttribute(lambda o: price_to_stripe(o.price)[0])
+
+    attributes = factory.LazyFunction(dict)
+    data = factory.Dict({
+        "id": factory.SelfAttribute('..id'),
+        "object": 'sku',
+        "image": None,
+        "price": factory.SelfAttribute('..price_value'),
+        "active": True,
+        "created": 1513784110,
+        "product": factory.SelfAttribute('..product.id'),
+        "updated": 1516982164,
+        "currency": factory.SelfAttribute('..price_currency'),
+        "livemode": True,
+        "metadata": {},
+        "inventory": {
+            "type": "infinite",
+            "value": None,
+            "quantity": None
+        },
+        "attributes": factory.SelfAttribute('..attributes'),
+        "package_dimensions": None
     })

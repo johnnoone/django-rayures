@@ -63,6 +63,8 @@ class TestPlanFactory:
         instance = factories.PlanFactory()
         assert instance.id
         assert instance.data["id"] == instance.id
+        assert instance.product
+        assert instance.product.type == "service"
 
 
 @pytest.mark.django_db
@@ -87,6 +89,33 @@ class TestProductFactory:
         instance = factories.ProductFactory()
         assert instance.id
         assert instance.data["id"] == instance.id
+
+    def test_good(self):
+        instance = factories.ProductFactory(good=True)
+        assert instance.id
+        assert instance.data["type"] == "good"
+        assert instance.data["name"]
+        assert instance.data["caption"]
+        assert instance.data["description"]
+
+    def test_service(self):
+        instance = factories.ProductFactory(service=True)
+        assert instance.id
+        assert instance.data["type"] == "service"
+        assert instance.data["name"]
+        assert instance.data["caption"] is None
+        assert instance.data["description"] is None
+
+
+
+@pytest.mark.django_db
+class TestSKUFactory:
+    def test_default(self):
+        instance = factories.SKUFactory()
+        assert instance.id
+        assert instance.data["id"] == instance.id
+        assert instance.product
+        assert instance.product.type == "good"
 
 
 @pytest.mark.django_db

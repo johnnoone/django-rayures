@@ -401,6 +401,7 @@ class Order(PersistedModel, object='order'):
 
 class Product(PersistedModel, object='product'):
     name = fields.CharField(source='name')
+    description = fields.CharField(source='description')
     url = fields.CharField(source='url')
     type = fields.CharField(source='type')
     caption = fields.CharField(source='caption')
