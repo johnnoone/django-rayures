@@ -107,7 +107,6 @@ class TestProductFactory:
         assert instance.data["description"] is None
 
 
-
 @pytest.mark.django_db
 class TestSKUFactory:
     def test_default(self):

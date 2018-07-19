@@ -268,8 +268,7 @@ class UpcomingInvoiceBuilder:
     def get(self, cached=True):
         if not cached or self._invoice is None:
             state = stripe.Invoice.upcoming(**self._arguments)
-            self._invoice = UpcomingInvoice(id=f"upcoming-{state.customer}", data=state)
-            self._invoice.rebound_fields()
+            self._invoice = UpcomingInvoice(data=state)
         return self._invoice
 
 
@@ -436,8 +435,7 @@ class Coupon(PersistedModel, object='coupon'):
     metadata = fields.HashField(source='metadata')
 
 
-class BaseInvoice(PersistedModel):
-    total = fields.PriceField(source='total')
+class Invoice(PersistedModel, object='invoice'):
     starting_balance = fields.PriceField(source='starting_balance')
     ending_balance = fields.PriceField(source='ending_balance')
     invoice_pdf = fields.CharField(source='invoice_pdf')
@@ -473,20 +471,139 @@ class BaseInvoice(PersistedModel):
         if self.data['discount']:
             return Discount(self.data['discount'])
 
-    class Meta:
-        abstract = True
 
-
-class Invoice(BaseInvoice, object='invoice'):
-    customer = fields.ForeignKey('rayures.Customer', related_name='invoices', source='customer')
-
-
-class UpcomingInvoice(BaseInvoice):
-    customer = fields.ForeignKey('rayures.Customer', related_name='+', source='customer')
+class UpcomingInvoice:
     builder = UpcomingInvoiceBuilder()
 
-    class Meta:
-        managed = False
+    def __init__(self, data):
+        self.data = data
+
+    @property
+    def customer_id(self):
+        return self.data['customer']
+
+    @property
+    def customer(self):
+        if self.customer_id:
+            return Customer.objects.get(id=self.customer_id)
+
+    @property
+    def starting_balance(self):
+        if self.data['starting_balance'] is not None:
+            return price_from_stripe(self.data['starting_balance'], self.data['currency'])
+
+    @property
+    def ending_balance(self):
+        if self.data['ending_balance'] is not None:
+            return price_from_stripe(self.data['ending_balance'], self.data['currency'])
+
+    @property
+    def invoice_pdf(self):
+        return self.data['invoice_pdf']
+
+    @property
+    def amount_due(self):
+        if self.data['amount_due'] is not None:
+            return price_from_stripe(self.data['amount_due'], self.data['currency'])
+
+    @property
+    def amount_paid(self):
+        if self.data['amount_paid'] is not None:
+            return price_from_stripe(self.data['amount_paid'], self.data['currency'])
+
+    @property
+    def amount_remaining(self):
+        if self.data['amount_remaining'] is not None:
+            return price_from_stripe(self.data['amount_remaining'], self.data['currency'])
+
+    @property
+    def period_start_at(self):
+        if self.data['period_start'] is not None:
+            return dt_from_stripe(self.data['period_start'])
+
+    @property
+    def period_end_at(self):
+        if self.data['period_end'] is not None:
+            return dt_from_stripe(self.data['period_end'])
+
+    @property
+    def date(self):
+        if self.data['date'] is not None:
+            return dt_from_stripe(self.data['date'])
+
+    @property
+    def due_date(self):
+        if self.data['due_date'] is not None:
+            return dt_from_stripe(self.data['due_date'])
+
+    @property
+    def next_payment_attempt(self):
+        if self.data['next_payment_attempt'] is not None:
+            return dt_from_stripe(self.data['next_payment_attempt'])
+
+    @property
+    def paid(self):
+        return self.data['paid']
+
+    @property
+    def forgiven(self):
+        return self.data['forgiven']
+
+    @property
+    def attempted(self):
+        return self.data['attempted']
+
+    @property
+    def closed(self):
+        return self.data['closed']
+
+    @property
+    def total(self):
+        if self.data['total'] is not None:
+            return price_from_stripe(self.data['total'], self.data['currency'])
+
+    @property
+    def subtotal(self):
+        if self.data['subtotal'] is not None:
+            return price_from_stripe(self.data['subtotal'], self.data['currency'])
+
+    @property
+    def charge_id(self):
+        return self.data['charge']
+
+    @property
+    def charge(self):
+        if self.charge_id:
+            return Charge.objects.get(id=self.charge_id)
+
+    @property
+    def subscription_id(self):
+        return self.data['subscription']
+
+    @property
+    def subscription(self):
+        if self.subscription_id:
+            return Subscription.objects.get(id=self.subscription_id)
+
+    @property
+    def hosted_invoice_url(self):
+        return self.data['hosted_invoice_url']
+
+    @property
+    def number(self):
+        return self.data['number']
+
+    @property
+    def receipt_number(self):
+        return self.data['receipt_number']
+
+    @property
+    def livemode(self):
+        return self.data['livemode']
+
+    @property
+    def metadata(self):
+        return self.data['metadata']
 
 
 class InvoiceItem(PersistedModel, object='invoiceitem'):
