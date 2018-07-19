@@ -64,6 +64,19 @@ class TestPrice:
 class TestUpcoming:
     def test_build(self):
         customer = factories.CustomerFactory(id='cus_BRObI5Us8hKBoq')
+        plan = factories.PlanFactory(id='PLAN-1-TEST')
+        subscription = factories.SubscriptionFactory(id='sub_BROsof61nYTM7D', plan=plan)
+
         invoice = models.UpcomingInvoice.builder.set_customer('cus_BRObI5Us8hKBoq').get()
+
         assert invoice.customer_id == 'cus_BRObI5Us8hKBoq'
         assert invoice.customer == customer
+
+        assert invoice.subscription_id == 'sub_BROsof61nYTM7D'
+        assert invoice.subscription == subscription
+
+        assert list(invoice.lines)[0].plan_id == 'PLAN-1-TEST'
+        assert list(invoice.lines)[0].plan == plan
+
+        assert list(invoice.lines)[0].subscription_id == 'sub_BROsof61nYTM7D'
+        assert list(invoice.lines)[0].subscription == subscription

@@ -605,6 +605,103 @@ class UpcomingInvoice:
     def metadata(self):
         return self.data['metadata']
 
+    @property
+    def lines(self):
+        for line in self.data['lines']['data']:
+            yield InvoiceLine(line)
+
+
+class InvoiceLine:
+    def __init__(self, data):
+        self.data = data
+
+    @property
+    def id(self):
+        return self.data['id']
+
+    @property
+    def amount(self):
+        if self.data['amount']:
+            return price_from_stripe(self.data['amount'], self.data['currency'])
+
+    @property
+    def description(self):
+        return self.data['description']
+
+    @property
+    def discountable(self):
+        return self.data['discountable']
+
+    @property
+    def invoice_item_id(self):
+        return self.data['invoice_item']
+
+    @property
+    def invoice_item(self):
+        if self.invoice_item_id:
+            return InvoiceItem.objects.get(id=self.invoice_item_id)
+
+    @property
+    def livemode(self):
+        return self.data['livemode']
+
+    @property
+    def metadata(self):
+        return self.data['metadata']
+
+    @property
+    def period(self):
+        values = self.data['period'].items()
+        return {key: dt_from_stripe(value) for key, value in values}
+
+    @property
+    def plan_id(self):
+        print('->', self.data['plan']['id'])
+        if self.data['plan']:
+            return self.data['plan']['id']
+
+    @property
+    def plan(self):
+        if self.data['plan']:
+            state = self.data['plan']
+            id = state['id']
+            return Plan(id=id, data=state)
+        if self.plan_id:
+            return Plan.objects.get(id=self.plan_id)
+
+    @property
+    def proration(self):
+        return self.data['proration']
+
+    @property
+    def quantity(self):
+        return self.data['quantity']
+
+    @property
+    def subscription_id(self):
+        return self.data['subscription']
+
+    @property
+    def subscription(self):
+        if self.subscription_id:
+            return Subscription.objects.get(id=self.subscription_id)
+
+    @property
+    def subscription_item_id(self):
+        return self.data.get('subscription_item', None)
+
+    @property
+    def subscription_item(self):
+        si = self.subscription_item_id
+        if si:
+            for item in self.subscription.items:
+                if item.id == si:
+                    return item
+
+    @property
+    def type(self):
+        return self.data['type']
+
 
 class InvoiceItem(PersistedModel, object='invoiceitem'):
     date = fields.DateTimeField(source='date')
