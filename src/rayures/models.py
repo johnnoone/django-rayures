@@ -7,6 +7,7 @@ from .utils import price_from_stripe, dt_from_stripe, price_to_stripe, dt_to_str
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.db.models.base import ModelBase
 from django.db.models.functions import Coalesce, Now
@@ -169,10 +170,6 @@ class PersistedModel(models.Model, metaclass=PersistedMeta):
         return str(self.id or '-')
 
 
-#
-
-#
-
 class UpcomingInvoiceBuilder:
     def __init__(self):
         self._arguments = {}
@@ -267,9 +264,18 @@ class UpcomingInvoiceBuilder:
 
     def get(self, cached=True):
         if not cached or self._invoice is None:
-            state = stripe.Invoice.upcoming(**self._arguments)
+            state = self._fetch_from_stripe()
+            # state = stripe.Invoice.upcoming(**self._arguments)
             self._invoice = UpcomingInvoice(data=state)
         return self._invoice
+
+    def _fetch_from_stripe(self):
+        try:
+            return stripe.Invoice.upcoming(**self._arguments)
+        except stripe.error.InvalidRequestError as error:
+            if error.http_status == 404:
+                raise UpcomingInvoice.DoesNotExists() from error
+            raise error
 
 
 class Entity(metaclass=StripeMeta):
@@ -473,6 +479,7 @@ class Invoice(PersistedModel, object='invoice'):
 
 
 class UpcomingInvoice:
+    DoesNotExists = type('DoesNotExists', (ObjectDoesNotExist,), {})
     builder = UpcomingInvoiceBuilder()
 
     def __init__(self, data):

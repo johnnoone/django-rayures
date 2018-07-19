@@ -80,3 +80,7 @@ class TestUpcoming:
 
         assert list(invoice.lines)[0].subscription_id == 'sub_BROsof61nYTM7D'
         assert list(invoice.lines)[0].subscription == subscription
+
+    def test_does_not_exists(self):
+        with pytest.raises(models.UpcomingInvoice.DoesNotExists):
+            models.UpcomingInvoice.builder.set_customer('sub_FakeUser').get()
