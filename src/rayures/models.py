@@ -3,13 +3,15 @@ import stripe
 import traceback
 from . import fields
 from .objs import Price  # noqa
-from .utils import price_from_stripe, dt_from_stripe
+from .utils import price_from_stripe, dt_from_stripe, price_to_stripe, dt_to_stripe
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.db.models.base import ModelBase
 from django.db.models.functions import Coalesce, Now
+from copy import deepcopy
+from datetime import datetime
 
 logger = logging.getLogger('rayures')
 PERSISTED_MODELS = {}
@@ -102,6 +104,8 @@ class PersistedModel(models.Model, metaclass=PersistedMeta):
         for field in self._meta.private_fields:
             if isinstance(field, fields.StripeField):
                 field.rebound(self)
+            elif hasattr(field, 'rebound_fields'):
+                field.rebound(self)
         return self
 
     def refresh_from_stripe(self):
@@ -163,6 +167,110 @@ class PersistedModel(models.Model, metaclass=PersistedMeta):
 
     def __str__(self):
         return str(self.id or '-')
+
+
+#
+
+#
+
+class UpcomingInvoiceBuilder:
+    def __init__(self):
+        self._arguments = {}
+        self._invoice = None
+
+    def add_argument(self, name, value):
+        cloned = self.__class__()
+        cloned._arguments = deepcopy(self._arguments)
+        cloned._invoice = None
+        cloned._arguments.setdefault(name, []).append(value)
+        return cloned
+
+    def set_argument(self, name, value):
+        cloned = self.__class__()
+        cloned._arguments = deepcopy(self._arguments)
+        cloned._invoice = None
+        cloned._arguments[name] = value
+        return cloned
+
+    def set_coupon(self, value: 'Coupon'):
+        if isinstance(value, Coupon):
+            value = value.id
+        if value is False:
+            value = ''
+        return self.set_argument('coupon', value)
+
+    def set_subscription(self, value: 'Subscription'):
+        if isinstance(value, Subscription):
+            value = value.id
+        return self.set_argument('subscription', value)
+
+    def set_subscription_billing_cycle_anchor(self, value: str):
+        return self.set_argument('subscription_billing_cycle_anchor', value)
+
+    def add_subscription_item(self, value: 'SubscriptionItem'):
+        if isinstance(value, SubscriptionItem):
+            buf = {}
+            if value.id:
+                buf['id'] = value.id
+            if getattr(value, 'clear_usage', None) is True:
+                buf['clear_usage'] = True
+            if getattr(value, 'deleted', None) is True:
+                buf['deleted'] = True
+            if value.metadata:
+                buf['metadata'] = value.metadata
+            if value.plan_id:
+                buf['plan'] = value.plan_id
+            if value.quantity is not None:
+                buf['quantity'] = value.quantity
+            value = buf
+        return self.add_argument('subscription_items', value)
+
+    def set_subscription_prorate(self, value: bool):
+        return self.set_argument('subscription_prorate', value)
+
+    def set_subscription_proration_date(self, value: datetime):
+        value = dt_to_stripe(value)
+        return self.set_argument('subscription_proration_date', value)
+
+    def add_invoice_item(self, value: 'InvoiceItem'):
+        if isinstance(value, InvoiceItem):
+            buf = {}
+            if value.amount:
+                amount, currency = price_to_stripe(value.amount)
+                buf['amount'] = amount
+                buf['currency'] = currency
+            if value.description:
+                buf['description'] = value.description
+            if value.discountable:
+                buf['discountable'] = value.discountable
+            if value.id:
+                buf['invoiceitem'] = value.id
+            if value.metadata:
+                buf['metadata'] = value.metadata
+            value = buf
+        return self.add_argument('invoice_items', value)
+
+    def set_subscription_tax_percent(self, value: float):  # from 0 to 100
+        return self.set_argument('subscription_tax_percent', value)
+
+    def set_subscription_trial_end(self, value: datetime):
+        value = dt_to_stripe(value)
+        return self.set_argument('subscription_trial_end', value)
+
+    def set_subscription_trial_from_plan(self, value: bool):
+        return self.set_argument('subscription_trial_from_plan', value)
+
+    def set_customer(self, value: 'Customer'):
+        if isinstance(value, Customer):
+            value = value.id
+        return self.set_argument('customer', value)
+
+    def get(self, cached=True):
+        if not cached or self._invoice is None:
+            state = stripe.Invoice.upcoming(**self._arguments)
+            self._invoice = UpcomingInvoice(id=f"upcoming-{state.customer}", data=state)
+            self._invoice.rebound_fields()
+        return self._invoice
 
 
 class Entity(metaclass=StripeMeta):
@@ -328,7 +436,7 @@ class Coupon(PersistedModel, object='coupon'):
     metadata = fields.HashField(source='metadata')
 
 
-class Invoice(PersistedModel, object='invoice'):
+class BaseInvoice(PersistedModel):
     total = fields.PriceField(source='total')
     starting_balance = fields.PriceField(source='starting_balance')
     ending_balance = fields.PriceField(source='ending_balance')
@@ -364,6 +472,21 @@ class Invoice(PersistedModel, object='invoice'):
     def discount(self):
         if self.data['discount']:
             return Discount(self.data['discount'])
+
+    class Meta:
+        abstract = True
+
+
+class Invoice(BaseInvoice, object='invoice'):
+    customer = fields.ForeignKey('rayures.Customer', related_name='invoices', source='customer')
+
+
+class UpcomingInvoice(BaseInvoice):
+    customer = fields.ForeignKey('rayures.Customer', related_name='+', source='customer')
+    builder = UpcomingInvoiceBuilder()
+
+    class Meta:
+        managed = False
 
 
 class InvoiceItem(PersistedModel, object='invoiceitem'):
@@ -568,6 +691,11 @@ class Customer(PersistedModel, object='customer'):
     def discount(self):
         if self.data['discount']:
             return Discount(self.data['discount'])
+
+    @property
+    def upcoming_invoice(self):
+        builder = UpcomingInvoiceBuilder()
+        return builder.set_customer(self)
 
 
 class Dispute(PersistedModel, object='dispute'):

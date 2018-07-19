@@ -144,6 +144,7 @@ class HashProxy:
 
 class StripeCol(Col):
     def as_sql(self, compiler, connection):
+        # print('zzz', self.target.source)
         qn = compiler.quote_name_unless_alias
         *prev, last = ["data"] + [f"'{p}'" for p in self.target.source.split('.')]
         field = '->'.join(prev) + '->>' + last
@@ -289,6 +290,8 @@ MISSING = object()
 
 
 class ForeignKey(models.ForeignKey):
+    proxy = CharProxy
+
     def __init__(self, to, related_name=None, related_query_name=None,
                  limit_choices_to=None, parent_link=False, to_field=None,
                  source=None,
@@ -319,7 +322,17 @@ class ForeignKey(models.ForeignKey):
         return col
 
     def contribute_to_class(self, cls, name, private_only=False, **kwargs):
+        self.proxy = type(self).proxy(self.source, name)
         return super().contribute_to_class(cls, name, private_only=True, **kwargs)
+
+    def rebound_fields(self, instance, *args, **kwargs):
+        self.rebound(instance)
+
+    def rebound(self, instance):
+        print('instance, self.attname', instance, self.attname)
+        value = self.proxy.__get__(instance)
+        setattr(instance, self.attname, value)
+        pass
 
 
 @ForeignKey.register_lookup

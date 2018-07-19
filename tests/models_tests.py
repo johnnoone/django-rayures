@@ -57,3 +57,13 @@ class TestPrice:
     def test_is_hashable(self):
         price = models.Price(123, 'usd')
         hash(price)
+
+
+@pytest.mark.vcr
+@pytest.mark.django_db
+class TestUpcoming:
+    def test_build(self):
+        customer = factories.CustomerFactory(id='cus_BRObI5Us8hKBoq')
+        invoice = models.UpcomingInvoice.builder.set_customer('cus_BRObI5Us8hKBoq').get()
+        assert invoice.customer_id == 'cus_BRObI5Us8hKBoq'
+        assert invoice.customer == customer
