@@ -46,5 +46,4 @@ def test_event():
             }
         }
     })
-    print('evt', event)
     reconciliate_by_event(event)

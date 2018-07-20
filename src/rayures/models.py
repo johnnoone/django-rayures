@@ -663,7 +663,6 @@ class InvoiceLine:
 
     @property
     def plan_id(self):
-        print('->', self.data['plan']['id'])
         if self.data['plan']:
             return self.data['plan']['id']
 

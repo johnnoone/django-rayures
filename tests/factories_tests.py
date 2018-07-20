@@ -16,6 +16,14 @@ class TestCustomerFactory:
         assert instance.data["id"] == instance.id
         assert instance.data["delinquent"] is True
 
+    def test_can_pay(self):
+        instance = factories.CustomerFactory(can_pay=True)
+        assert instance.id
+        assert instance.data["id"] == instance.id
+        assert instance.data["delinquent"] is False
+        assert instance.default_source is not None
+        assert instance.default_source in instance.sources
+
 
 @pytest.mark.django_db
 class TestSubscriptionFactory:

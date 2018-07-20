@@ -144,7 +144,6 @@ class HashProxy:
 
 class StripeCol(Col):
     def as_sql(self, compiler, connection):
-        # print('zzz', self.target.source)
         qn = compiler.quote_name_unless_alias
         *prev, last = ["data"] + [f"'{p}'" for p in self.target.source.split('.')]
         field = '->'.join(prev) + '->>' + last

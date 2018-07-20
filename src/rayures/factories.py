@@ -14,7 +14,7 @@ def timestamp(obj):
 class CustomerFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Customer
-        exclude = 'default_source', 'sources',
+        exclude = 'default_source', 'sources', 'source',
 
     id = factory.Faker('md5', raw_output=False)
     delinquent = False
@@ -32,6 +32,14 @@ class CustomerFactory(factory.django.DjangoModelFactory):
             "data": factory.SelfAttribute('...sources'),
         })
     })
+
+    class Params:
+        can_pay = factory.Trait(
+            delinquent=False,
+            source=factory.SubFactory('rayures.factories.CardFactory'),
+            default_source=factory.SelfAttribute('source.id'),
+            sources=factory.LazyAttribute(lambda o: [o.source.data])
+        )
 
 
 class SubscriptionFactory(factory.django.DjangoModelFactory):
